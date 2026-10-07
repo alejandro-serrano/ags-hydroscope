@@ -1,0 +1,26 @@
+# CPU smoke test: 200 images, 1 epoch. Checks the pipeline end to end; never reported.
+# This is the only config allowed to override shared hyperparameters, and it writes outside
+# experiments/results/.
+extends: base.yaml
+
+run_id: smoke
+model: resnet50
+bands: rgb
+device: cpu
+
+data:
+  max_samples: 200
+  num_workers: 0
+
+optim:
+  batch_size: 16  # keeps CPU memory low
+
+schedule:
+  max_epochs: 1
+
+finetune:
+  epochs: 1
+
+output:
+  checkpoint_dir: outputs/smoke/checkpoints
+  results_dir: outputs/smoke/results

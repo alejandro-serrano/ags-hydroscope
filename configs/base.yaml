@@ -1,0 +1,48 @@
+# Shared experimental protocol (docs/protocol.md). Every run config `extends: base.yaml` and sets
+# ONLY run_id, model, bands and init. Changing any value here changes it for all models and must
+# be recorded in docs/protocol.md in the same commit.
+
+run_id: null          # e.g. resnet50_rgb_imagenet
+model: null           # resnet50 | efficientnet_b0 | vit_small
+bands: null           # rgb (B04, B03, B02) | ms13 (B01…B12, B8A)
+init: imagenet        # imagenet | ssl4eo (ms13 only; resnet50 MoCo, vit_small DINO)
+seed: 0
+device: auto          # auto | cuda | mps | cpu
+
+data:
+  dataset: eurosat              # TorchGeo EuroSAT, official split
+  root: data/eurosat
+  stats: data/eurosat/stats.json  # per-band mean/std computed on EuroSAT train only
+  num_classes: 10
+  patch_size: 64
+  input_size: 224               # resized from 64
+  augment:
+    hflip: true
+    vflip: true
+    rot90: true
+  max_samples: null             # null = full split
+  num_workers: 4
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 0.05
+  batch_size: 64
+
+schedule:
+  warmup_epochs: 1
+  scheduler: cosine
+  max_epochs: 15
+
+early_stopping:
+  monitor: val_macro_f1
+  mode: max
+  patience: 3
+
+finetune:                       # Aguascalientes adaptation (modes: head | last_block)
+  epochs: 10
+  loss: class_weighted_ce
+
+output:
+  checkpoint_dir: checkpoints
+  results_dir: experiments/results
