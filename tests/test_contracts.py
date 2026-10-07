@@ -23,6 +23,9 @@ def valid_result():
         "peak_mem_mb": None,
         "epochs_to_95": 1,
         "patches_per_s": 1.0,
+        "device": "cpu",
+        "micro_batch": 32,
+        "accum_steps": 2,
         "protocol_version": "1.0",
         "git_commit": "0000000",
     }

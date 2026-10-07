@@ -109,3 +109,4 @@ fine-tuning. If two models are within 1 point (≤ 0.01 macro-F1), the one with 
 | Date | Change | Reason | Applies to all models |
 | --- | --- | --- | --- |
 | 2026-10-07 | Protocol frozen (v1.0) | — | yes |
+| 2026-10-07 | Hardware: Apple M2 Pro (MPS), fp32; effective batch 64 = 2 × 32 with gradient accumulation (BatchNorm sees 32 samples); peak memory = MPS driver memory; data cached as .npy; resize on device | Only machine available | yes |

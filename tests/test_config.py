@@ -40,9 +40,19 @@ def test_base_matches_protocol():
         "lr": 1e-4,
         "weight_decay": 0.05,
         "batch_size": 64,
-        "grad_accum_steps": 1,
+        "micro_batch_size": 32,
     }
-    assert cfg["schedule"] == {"warmup_epochs": 1, "scheduler": "cosine", "max_epochs": 15}
+    assert cfg["schedule"] == {
+        "warmup_epochs": 1,
+        "scheduler": "cosine",
+        "max_epochs": 15,
+        "max_steps": None,
+    }
+    assert cfg["data"]["stats"] == "configs/stats/eurosat_train_stats.json"
+    assert cfg["data"]["cache_dir"] == "data/eurosat/cache"
+    assert cfg["data"]["num_workers"] == 2
+    assert cfg["data"]["persistent_workers"] is True
+    assert cfg["data"]["pin_memory"] is False
     assert cfg["early_stopping"] == {"monitor": "val_macro_f1", "mode": "max", "patience": 3}
     assert cfg["loss"] == {"eurosat": "cross_entropy", "ags": "class_weighted_cross_entropy"}
     assert cfg["finetune"] == {"modes": ["head", "last_block"], "epochs": 10}
@@ -53,6 +63,9 @@ def test_smoke_is_small_and_writes_outside_results():
     assert cfg["device"] == "cpu"
     assert cfg["data"]["max_samples"] == 200
     assert cfg["schedule"]["max_epochs"] == 1
+    assert cfg["optim"]["batch_size"] == 16
+    assert cfg["optim"]["micro_batch_size"] == 8
+    assert cfg["data"]["num_workers"] == 0
     assert not cfg["output"]["results_dir"].startswith("experiments/results")
 
 
