@@ -218,3 +218,23 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- ags-hydroscope ---
+# Data, rasters and checkpoints go to GitHub Releases, never to git.
+data/*
+!data/mock/
+checkpoints/
+outputs/
+*.pt
+*.pth
+*.ckpt
+*.tif
+*.tiff
+*.vrt
+*.jp2
+*.nc
+!data/mock/**
+
+# Local-only Claude Code files
+CLAUDE.local.md
+.claude/settings.local.json
