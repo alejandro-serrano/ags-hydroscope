@@ -1,4 +1,4 @@
-.PHONY: env lint test smoke train eval tables figures
+.PHONY: env lint test smoke train eval tables figures paper
 
 PYTHON ?= python
 SPLIT ?= ags_test
@@ -28,3 +28,6 @@ tables:
 
 figures:
 	$(PYTHON) scripts/make_figures.py
+
+paper:
+	tectonic paper/main.tex
