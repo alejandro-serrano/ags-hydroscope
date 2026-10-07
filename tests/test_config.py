@@ -28,13 +28,24 @@ def test_extends_resolves_relative_to_file(tmp_path):
 
 def test_base_matches_protocol():
     cfg = load_config(CONFIGS / "base.yaml")
+    assert cfg["protocol_version"] == "1.0"
     assert cfg["seed"] == 0
     assert cfg["data"]["input_size"] == 224
     assert cfg["data"]["patch_size"] == 64
+    assert cfg["data"]["resize"] == "bilinear"
+    assert cfg["data"]["normalization"] == {"imagenet": "eurosat_train", "ssl4eo": "torchgeo"}
     assert cfg["data"]["augment"] == {"hflip": True, "vflip": True, "rot90": True}
-    assert cfg["optim"] == {"name": "adamw", "lr": 1e-4, "weight_decay": 0.05, "batch_size": 64}
+    assert cfg["optim"] == {
+        "name": "adamw",
+        "lr": 1e-4,
+        "weight_decay": 0.05,
+        "batch_size": 64,
+        "grad_accum_steps": 1,
+    }
     assert cfg["schedule"] == {"warmup_epochs": 1, "scheduler": "cosine", "max_epochs": 15}
     assert cfg["early_stopping"] == {"monitor": "val_macro_f1", "mode": "max", "patience": 3}
+    assert cfg["loss"] == {"eurosat": "cross_entropy", "ags": "class_weighted_cross_entropy"}
+    assert cfg["finetune"] == {"modes": ["head", "last_block"], "epochs": 10}
 
 
 def test_smoke_is_small_and_writes_outside_results():
