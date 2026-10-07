@@ -19,6 +19,9 @@ RESULT_FIELDS: dict[str, str] = {
     "peak_mem_mb": "float",
     "epochs_to_95": "int",
     "patches_per_s": "float",
+    "device": "str",
+    "micro_batch": "int",
+    "accum_steps": "int",
     "protocol_version": "str",
     "git_commit": "str",
 }

@@ -249,3 +249,5 @@ CLAUDE.local.md
 *.pdf
 
 .DS_Store
+
+PROMPTS.md

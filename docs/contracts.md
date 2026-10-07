@@ -78,9 +78,12 @@ Invariants: `cell_id` is unique; every `block_id` appears in exactly one `split`
 | `confusion` | list[list[int]] | Confusion matrix; rows = true, cols = predicted, class index order |
 | `params` | int | Total number of parameters |
 | `train_time_s` | float, nullable | Total training time in seconds; `null` for evaluation-only runs |
-| `peak_mem_mb` | float, nullable | Peak GPU memory in MB; `null` on CPU |
+| `peak_mem_mb` | float, nullable | Peak device memory in MB: MPS driver memory (maximum sampled at each step), CUDA `max_memory_allocated`; `null` on CPU |
 | `epochs_to_95` | int, nullable | First epoch reaching 95 % of the best val macro-F1; `null` for evaluation-only runs |
 | `patches_per_s` | float | Inference throughput on the evaluated split |
+| `device` | str | `cuda` · `mps` · `cpu`; device the run executed on |
+| `micro_batch` | int | Micro-batch size per forward/backward pass |
+| `accum_steps` | int | Gradient accumulation steps per optimizer step (effective batch = `micro_batch` × `accum_steps`) |
 | `protocol_version` | str | Protocol version (e.g. `"1.0"`) |
 | `git_commit` | str | Commit hash of the code that produced the file |
 
