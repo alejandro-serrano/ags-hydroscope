@@ -1,3 +1,14 @@
-% References for the paper. Filled by task F1 with verified entries only (checked DOI or source).
-% Never invent references; unverifiable entries must be marked in docs/literature.md.
-% When adding the first entry, uncomment \bibliography in main.tex (see TODO(F1)).
+% References for the paper (task F1-01). Entries are fetched, never written by hand:
+%   curl -sLH "Accept: application/x-bibtex" https://doi.org/<DOI>
+% Mechanical normalizations only (sed): entry keys renamed; months to BibTeX macros (jul, feb, sep);
+% Unicode en dash in pages to --; proper nouns in titles braced ({EuroSAT}, {SSL4EO-S12}, {Earth}). See docs/literature.md for the exact commands.
+
+@article{helber2019eurosat, title={{EuroSAT}: A Novel Dataset and Deep Learning Benchmark for Land Use and Land Cover Classification}, volume={12}, ISSN={2151-1535}, url={http://dx.doi.org/10.1109/JSTARS.2019.2918242}, DOI={10.1109/jstars.2019.2918242}, number={7}, journal={IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing}, publisher={Institute of Electrical and Electronics Engineers (IEEE)}, author={Helber, Patrick and Bischke, Benjamin and Dengel, Andreas and Borth, Damian}, year={2019}, month=jul, pages={2217--2226} }
+
+
+@article{bazi2021vit, title={Vision Transformers for Remote Sensing Image Classification}, volume={13}, ISSN={2072-4292}, url={http://dx.doi.org/10.3390/rs13030516}, DOI={10.3390/rs13030516}, number={3}, journal={Remote Sensing}, publisher={MDPI AG}, author={Bazi, Yakoub and Bashmal, Laila and Rahhal, Mohamad M. Al and Dayil, Reham Al and Ajlan, Naif Al}, year={2021}, month=feb, pages={516} }
+
+
+@article{wang2023ssl4eo, title={{SSL4EO-S12}: A large-scale multimodal, multitemporal dataset for self-supervised learning in {Earth} observation [Software and Data Sets]}, volume={11}, ISSN={2373-7468}, url={http://dx.doi.org/10.1109/MGRS.2023.3281651}, DOI={10.1109/mgrs.2023.3281651}, number={3}, journal={IEEE Geoscience and Remote Sensing Magazine}, publisher={Institute of Electrical and Electronics Engineers (IEEE)}, author={Wang, Yi and Braham, Nassim Ait Ali and Xiong, Zhitong and Liu, Chenying and Albrecht, Conrad M. and Zhu, Xiao Xiang}, year={2023}, month=sep, pages={98--106} }
+
+
