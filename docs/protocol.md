@@ -1,82 +1,111 @@
 # Experimental protocol
 
-This protocol is shared by every model. The three architectures (ResNet-50, EfficientNet-B0,
-ViT-S/16) differ **only** in the architecture; everything below is identical across runs.
-The machine-readable version is `configs/base.yaml`; `tests/test_config.py` checks that both agree
-and that run configs do not override shared keys.
+**Status:** frozen · **Protocol version:** 1.0
+
+This protocol is shared by every model. ResNet-50, EfficientNet-B0 and ViT-S/16 differ **only** in
+the architecture. The machine-readable copy is `configs/base.yaml`; `tests/test_config.py` checks
+that both agree and that run configs do not override shared keys.
 
 **Rule:** never change a hyperparameter for only one model. If something must change, change it in
-`configs/base.yaml` for all models and add an entry to the [change log](#change-log) in the same
+`configs/base.yaml` for all models and add a row to the [change log](#9-change-log) in the same
 commit.
 
-## Runs
+## 1. Research questions
 
-| Factor | Levels |
+- **RQ-a.** Which of ResNet-50, EfficientNet-B0 and ViT-S/16 performs best on EuroSAT, and at what
+  computational cost?
+- **RQ-b.** How much does each model degrade on Aguascalientes zero-shot?
+- **RQ-c.** How much of that degradation does light fine-tuning recover?
+- **RQ-d.** Does 13-band input outperform RGB?
+- **RQ-e.** Do SSL4EO-S12 weights outperform ImageNet weights?
+
+## 2. Data
+
+- **EuroSAT:** EuroSAT MS from TorchGeo with its official train/val/test split. Band order is
+  TorchGeo's: B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12, B8A (B8A last).
+  RGB input = B04, B03, B02 taken from the same files.
+- **Aguascalientes:** ~400 patches from April 2024. Spatial split by 5×5 km blocks: 50 % fine-tune,
+  50 % test, stratified by class. No block appears in both splits.
+
+## 3. Classes
+
+The 10 EuroSAT classes, in TorchGeo index order:
+
+| Index | Class |
 | --- | --- |
-| Model | `resnet50`, `efficientnet_b0`, `vit_small` (ViT-S/16), all from timm |
-| Bands | `rgb` (B04, B03, B02) · `ms13` (all 13 Sentinel-2 bands) |
-| Init | `imagenet` · `ssl4eo` (only `ms13` with `resnet50` MoCo or `vit_small` DINO) |
+| 0 | AnnualCrop |
+| 1 | Forest |
+| 2 | HerbaceousVegetation |
+| 3 | Highway |
+| 4 | Industrial |
+| 5 | Pasture |
+| 6 | PermanentCrop |
+| 7 | Residential |
+| 8 | River |
+| 9 | SeaLake |
 
-Each run config is `configs/<model>_<bands>_<init>.yaml`, contains `extends: base.yaml` and sets
-only `run_id`, `model`, `bands` and `init`.
+Classes with fewer than 10 test patches in Aguascalientes are excluded from its macro-F1 and are
+reported separately.
 
-## Data
+## 4. Models and initialization
 
-- **Source domain:** EuroSAT (TorchGeo), official train/val/test split, 10 classes.
-- **Target domain:** Aguascalientes, Mexico, Sentinel-2 L1C harmonized, April 2024 median,
-  640 m cells → 13×64×64 patches (see `docs/contracts.md`).
-- **Aguascalientes split:** spatial, by 5×5 km blocks, stratified by class. A block (and therefore
-  a cell) belongs to exactly one split. Never move a cell between splits.
-- **Band order:** TorchGeo EuroSAT order — B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11,
-  B12, B8A (B8A last). RGB = B04, B03, B02.
+| Config name | timm model | Weights |
+| --- | --- | --- |
+| `resnet50` | `resnet50` | ImageNet |
+| `efficientnet_b0` | `efficientnet_b0` | ImageNet |
+| `vit_small` | `vit_small_patch16_224` | ImageNet |
 
-## Preprocessing and augmentation
+- **13-band input:** copy the RGB first-conv weights to the B04, B03, B02 input channels and
+  initialize every other channel with their mean.
+- **SSL variant (priority: Should), 13 bands only:** TorchGeo
+  `ResNet50_Weights.SENTINEL2_ALL_MOCO` and `ViTSmall16_Weights.SENTINEL2_ALL_DINO`.
 
-- Per-band normalization (mean/std) computed on **EuroSAT train only** and stored in
-  `data/eurosat/stats.json`; the same statistics are applied to every split and to Aguascalientes.
-- Input resized from 64×64 to 224×224.
-- Training augmentation: horizontal flip, vertical flip, 90° rotations. No augmentation at
-  evaluation.
-
-## Models
-
-- Pretrained backbones from timm (ImageNet) or TorchGeo (SSL4EO-S12), new 10-class head.
-- **13-band input with ImageNet weights:** copy the pretrained RGB first-conv weights to the B04,
-  B03, B02 input channels; initialize every other channel with the mean of those three.
-
-## Training (EuroSAT)
+## 5. Shared training configuration
 
 | Setting | Value |
 | --- | --- |
+| Input | 64×64 resized to 224×224 (bilinear) |
+| Normalization | Per-band, from EuroSAT train (TorchGeo's normalization for SSL4EO weights) |
+| Augmentation | Horizontal and vertical flips + 90° rotations |
 | Optimizer | AdamW, lr 1e-4, weight decay 0.05 |
-| Schedule | 1 warmup epoch, then cosine decay |
-| Batch size | 64 |
-| Epochs | max 15 |
-| Early stopping | patience 3 on val macro-F1; keep the best-val checkpoint |
+| Schedule | 1 warmup epoch + cosine |
+| Batch size | 64 (gradient accumulation if needed) |
+| Epochs | Max 15 |
+| Early stopping | Patience 3 on val macro-F1 |
+| Loss | Cross-entropy (class-weighted on Aguascalientes) |
 | Seed | 0 |
+| Hardware | Same GPU for all runs |
 
-## Fine-tuning (Aguascalientes)
+## 6. Experiment matrix
 
-- Modes: `head` (frozen backbone) and `last_block` (last stage/block + head trainable).
-- Fixed 10 epochs, class-weighted cross-entropy; all other settings as in training.
-- Zero-shot evaluation uses the EuroSAT checkpoint with no adaptation.
+| ID | Description | Runs |
+| --- | --- | --- |
+| E1 | 3 models × {RGB, 13 bands}, ImageNet weights | 6 |
+| E2 | SSL4EO-S12 weights (ResNet-50 MoCo, ViT-S/16 DINO), 13 bands | 2 |
+| E3 | Zero-shot evaluation of the 8 checkpoints on Aguascalientes | 8 evaluations |
+| E4 | Fine-tuning of the 8 checkpoints, modes `head` and `last_block`, 10 fixed epochs | 16 |
 
-## Metrics
+- `head`: backbone frozen, classification head trained.
+- `last_block`: last stage/block and head trained.
 
-- **Main metric:** macro-F1.
-- Also reported: accuracy, per-class F1, confusion matrix, number of parameters, total training
-  time, peak GPU memory, throughput (patches/s), and epochs to reach 95 % of the best val macro-F1.
-- Derived (tables): degradation = F1<sub>EuroSAT</sub> − F1<sub>zero-shot</sub>;
-  recovery = (F1<sub>fine-tuned</sub> − F1<sub>zero-shot</sub>) / degradation.
-- Every number in the paper, slides and README is generated by a script from
-  `experiments/results/*.json`.
+## 7. Metrics
 
-## Known limitations
+- **Primary:** macro-F1.
+- Also: accuracy, per-class F1, confusion matrix, number of parameters, total and per-epoch
+  training time, peak GPU memory, throughput (patches/s), epochs to 95 % of the best val macro-F1.
+- **Drop** = F1<sub>EuroSAT</sub> − F1<sub>Ags, zero-shot</sub>
+- **Recovery** = (F1<sub>Ags, fine-tuned</sub> − F1<sub>Ags, zero-shot</sub>) / Drop
 
-One seed, small Aguascalientes test set (~200 patches), a single month (April 2024), 64-px patches.
+Every number in the paper, slides and README is generated by a script from
+`experiments/results/*.json`.
 
-## Change log
+## 8. Selection rule
 
-| Date | Change | Reason | Commit |
+The selected model is the one with the highest Aguascalientes macro-F1 after `last_block`
+fine-tuning. If two models are within 1 point (≤ 0.01 macro-F1), the one with higher patches/s wins.
+
+## 9. Change log
+
+| Date | Change | Reason | Applies to all models |
 | --- | --- | --- | --- |
-| 2026-10-07 | Initial protocol | — | — |
+| 2026-10-07 | Protocol frozen (v1.0) | — | yes |
