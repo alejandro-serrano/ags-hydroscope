@@ -238,3 +238,14 @@ outputs/
 # Local-only Claude Code files
 CLAUDE.local.md
 .claude/settings.local.json
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.bbl
+*.blg
+*.out
+
+*.pdf
+
+.DS_Store

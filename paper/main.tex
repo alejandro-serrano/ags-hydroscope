@@ -1,0 +1,58 @@
+% IEEE conference paper. Structure based on IEEEtran's bare_conf.tex.
+% Build from the repo root with `make paper`. Numbers come only from generated files in
+% tables/ and figures/ (see .claude/rules/paper.md).
+\documentclass[conference]{IEEEtran}
+
+\usepackage[T1]{fontenc}
+\usepackage{cite}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage{url}
+
+\graphicspath{{figures/}}
+
+% Pending items are printed in red so they stay visible in the PDF.
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\hyphenation{Aguas-ca-lien-tes}
+
+\begin{document}
+
+\title{CNNs vs.\ Vision Transformers under Geographic Domain Shift:
+From EuroSAT to Semi-Arid Aguascalientes, Mexico}
+
+\author{\IEEEauthorblockN{\todo{Author name}}
+\IEEEauthorblockA{\todo{Affiliation}\\
+\todo{City, Country}\\
+\todo{Email}}}
+
+\maketitle
+
+\begin{abstract}
+\todo{Abstract: problem, models compared, data, main findings and selected model; written last,
+from generated results only.}
+\end{abstract}
+
+\begin{IEEEkeywords}
+\todo{Keywords}
+\end{IEEEkeywords}
+
+\input{sections/introduction}
+\input{sections/related}
+\input{sections/data}
+\input{sections/methodology}
+\input{sections/results}
+\input{sections/discussion}
+\input{sections/conclusions}
+
+% TODO(F1): uncomment both lines once references.bib has its first entry and the text cites it.
+% An empty bibliography is a fatal LaTeX error under tectonic.
+% \bibliographystyle{IEEEtran}
+% \bibliography{references}
+\section*{References}
+\todo{References (task F1).}
+
+\end{document}
