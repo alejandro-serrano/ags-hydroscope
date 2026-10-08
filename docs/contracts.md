@@ -18,8 +18,13 @@ Data, rasters and checkpoints are never committed; they are published as GitHub 
 | CRS | EPSG:32613 |
 | Band order | TorchGeo EuroSAT: B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12, B8A (B8A last) |
 | Values | TOA reflectance × 10000 |
+| Compression | deflate (predictor 2); band descriptions B01 … B8A |
+| Georeferencing | transform = cell origin (north-west corner), 10 m pixels |
 
-- **Written by:** `hydroscope.geo` tiling (from the Earth Engine export).
+- **RGB preview:** `data/ags/previews/{cell_id}.png`, 256×256 RGB uint8 (B04, B03, B02; nearest-neighbour ×4).
+  The 2–98 % stretch limits are global (whole state) and stored in `data/ags/previews/stretch_rgb.json`.
+
+- **Written by:** `hydroscope.geo.tiling` (from the Earth Engine export).
 - **Read by:** labeling notebook (`labeling/`), Aguascalientes dataset (`hydroscope.data`),
   evaluation, fine-tuning and Grad-CAM.
 
@@ -33,7 +38,7 @@ Data, rasters and checkpoints are never committed; they are published as GitHub 
 | `cell_id` | str | Grid cell id; matches the patch filename |
 | `label` | str | One of the 10 class names (protocol section 3) |
 | `annotator` | str | Annotator id |
-| `block_id` | str | 5×5 km block containing the cell |
+| `block_id` | str | 8×8-cell (5.12 km) block containing the cell; format `b{row//8:03d}_{col//8:03d}` |
 | `split` | str | `finetune` or `test` |
 
 Invariants: `cell_id` is unique; every `block_id` appears in exactly one `split`.
@@ -91,3 +96,38 @@ Validated by `hydroscope.contracts.validate_result`.
 
 - **Written by:** `hydroscope.training.train`, `evaluate` and `finetune` only; never edited by hand.
 - **Read by:** `scripts/make_tables.py`, `scripts/make_figures.py`, `experiment-auditor`.
+
+## 5. Grid
+
+- **Path:** `data/ref/grid.gpkg`, layer `grid`
+- **CRS:** EPSG:32613. 640 m cells anchored on the absolute 640 m lattice (multiples of 640 m).
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `cell_id` | str | `r{row:04d}_c{col:04d}`; row 0 is the northernmost row |
+| `row`, `col` | int | Cell indices from the north-west corner of the grid |
+| `block_id` | str | `b{row//8:03d}_{col//8:03d}` (8×8 cells = 5.12 km) |
+| `frac_in_state` | float | Area of cell ∩ state / 640² |
+| `geometry` | polygon | 640 m × 640 m cell |
+
+Only cells intersecting the state are kept.
+
+- **Written by:** `python -m hydroscope.geo.grid`.
+- **Read by:** `hydroscope.geo.tiling`, spatial split script.
+
+## 6. Cells index
+
+- **Path:** `data/ags/cells.csv`
+- **Format:** CSV, UTF-8, header row, one row per grid cell.
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `cell_id` | str | Grid cell id |
+| `block_id` | str | 8×8-cell block |
+| `frac_in_state` | float | Fraction of the cell inside the state |
+| `valid_frac` | float | Fraction of pixels with `valid_obs >= 1` |
+| `lat`, `lon` | float | Cell centroid, EPSG:4326 |
+| `has_patch` | bool | Patch and preview written (`frac_in_state >= 0.8` and `valid_frac >= 0.6`) |
+
+- **Written by:** `python -m hydroscope.geo.tiling`.
+- **Read by:** labeling notebook (cell sampling), spatial split script.

@@ -24,8 +24,8 @@ commit.
 - **EuroSAT:** EuroSAT MS from TorchGeo with its official train/val/test split. Band order is
   TorchGeo's: B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12, B8A (B8A last).
   RGB input = B04, B03, B02 taken from the same files.
-- **Aguascalientes:** ~400 patches from April 2024. Spatial split by 5×5 km blocks: 50 % fine-tune,
-  50 % test, stratified by class. No block appears in both splits.
+- **Aguascalientes:** ~400 patches from April 2024. Spatial split by blocks of 8×8 grid cells
+  (5.12 km): 50 % fine-tune, 50 % test, stratified by class. No block appears in both splits.
 
 ## 3. Classes
 
@@ -110,3 +110,4 @@ fine-tuning. If two models are within 1 point (≤ 0.01 macro-F1), the one with 
 | --- | --- | --- | --- |
 | 2026-10-07 | Protocol frozen (v1.0) | — | yes |
 | 2026-10-07 | Hardware: Apple M2 Pro (MPS), fp32; effective batch 64 = 2 × 32 with gradient accumulation (BatchNorm sees 32 samples); peak memory = MPS driver memory; data cached as .npy; resize on device | Only machine available | yes |
+| 2026-10-08 | Spatial blocks of 8×8 cells (5.12 km) instead of 5×5 km, so that every cell belongs to exactly one block | Alignment with the 640 m grid | yes |

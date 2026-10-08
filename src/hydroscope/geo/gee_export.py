@@ -6,6 +6,7 @@ Usage::
     python -m hydroscope.geo.gee_export --dry-run          # checks and parameters, no task started
     python -m hydroscope.geo.gee_export                    # starts the Drive export task
     python -m hydroscope.geo.gee_export --boundary data/ref/<inegi_state_file>
+    python -m hydroscope.geo.gee_export --save-boundary data/ref/ags_state.gpkg   # no export task
 
 What is exported (``COPERNICUS/S2_HARMONIZED``, level L1C, DN = reflectance x 10000):
 
@@ -55,6 +56,7 @@ PIXEL_SIZE_M = 10
 GRID_M = 640
 MAX_PIXELS = 10_000_000_000
 ENV_VAR = "EE_PROJECT"
+BOUNDARY_LAYER = "state"
 
 QA60_OPAQUE_BIT = 10
 QA60_CIRRUS_BIT = 11
@@ -261,6 +263,31 @@ def get_state_geometry(ee: Any, boundary: Path | None = None) -> Any:
     return selected.geometry()
 
 
+def boundary_frame(geojson: Mapping[str, Any]) -> Any:
+    """Convert a GeoJSON geometry (EPSG:4326) into a one-row ``GeoDataFrame``.
+
+    Args:
+        geojson: GeoJSON geometry mapping, e.g. ``ee.Geometry.getInfo()``. A ``Feature`` is also
+            accepted (its ``geometry`` member is used).
+
+    Returns:
+        ``GeoDataFrame`` in EPSG:4326 with a ``name`` column (the state name) and the geometry.
+    """
+    import geopandas as gpd
+    from shapely.geometry import shape
+
+    geometry = geojson.get("geometry", geojson) if geojson.get("type") == "Feature" else geojson
+    return gpd.GeoDataFrame({"name": [STATE]}, geometry=[shape(geometry)], crs="EPSG:4326")
+
+
+def save_boundary(ee: Any, geometry: Any, path: Path) -> Path:
+    """Fetch ``geometry`` from Earth Engine and write it to a GPKG (layer ``state``)."""
+    frame = boundary_frame(geometry.getInfo())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_file(path, driver="GPKG", layer=BOUNDARY_LAYER)
+    return path
+
+
 def _geometry_from_file(ee: Any, path: Path) -> Any:
     """Read a vector file, dissolve it into one EPSG:4326 geometry and convert it to ee."""
     import geopandas as gpd
@@ -374,6 +401,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="INEGI state boundary file (e.g. data/ref/<file>.gpkg) instead of FAO GAUL",
     )
+    parser.add_argument(
+        "--save-boundary",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="write the state geometry (GAUL, or --boundary) to a GPKG (layer 'state', "
+        "EPSG:4326) and exit without starting an export task",
+    )
     return parser
 
 
@@ -390,6 +425,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     geometry = get_state_geometry(ee, args.boundary)
     source = str(args.boundary) if args.boundary else f"{GAUL_ASSET} ({COUNTRY}, {STATE})"
     print(f"Boundary: {source}")
+
+    if args.save_boundary is not None:
+        save_boundary(ee, geometry, args.save_boundary)
+        print(f"Wrote state boundary to {args.save_boundary} (layer '{BOUNDARY_LAYER}')")
+        return 0
 
     collection = filtered_collection(ee, geometry)
     diag = collection_diagnostics(ee, collection, geometry)

@@ -41,7 +41,7 @@ changes with the language: "Monitor del agua de Aguascalientes" (es) / "Aguascal
   and record it in `docs/protocol.md` in the same commit.
 - 13-band input: copy ImageNet RGB first-conv weights to B04/B03/B02, mean of them for the rest.
 - Band order = TorchGeo EuroSAT order (B01…B12, B8A last). RGB = B04, B03, B02.
-- Aguascalientes split is spatial (5×5 km blocks). Never move a cell between splits.
+- Aguascalientes split is spatial (8×8-cell (5.12 km) blocks). Never move a cell between splits.
 - Main metric: macro-F1. Also accuracy, per-class F1, confusion matrix, params, train time,
   peak GPU memory, patches/s, epochs to 95 % of best val macro-F1.
 
