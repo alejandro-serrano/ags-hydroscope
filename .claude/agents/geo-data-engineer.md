@@ -16,7 +16,7 @@ Stage 1:
 - Tiling: 13×64×64 uint16 GeoTIFF per cell, band order = TorchGeo EuroSAT (B01…B12, B8A last),
   plus an RGB PNG preview (B04, B03, B02, 2–98 % stretch) for labeling.
 - Labeling notebook with ipywidgets: shows the PNG, 10 class buttons, writes `labels.csv`.
-- Spatial split by 5×5 km blocks, stratified by class; no block in two splits.
+- Spatial split by 8×8-cell (5.12 km) blocks, stratified by class; no block in two splits.
 - Check that patch value histograms fall in the EuroSAT range before declaring a patch set ready.
 
 Stage 2 (branch `stage2/*`): month-by-month export → tile → predict → append to
