@@ -36,15 +36,17 @@ Data, rasters and checkpoints are never committed; they are published as GitHub 
 | Column | Type | Description |
 | --- | --- | --- |
 | `cell_id` | str | Grid cell id; matches the patch filename |
-| `label` | str | One of the 10 class names (protocol section 3) |
+| `label` | str | One of the 10 class names (protocol section 3) or `skip` |
 | `annotator` | str | Annotator id |
 | `block_id` | str | 8×8-cell (5.12 km) block containing the cell; format `b{row//8:03d}_{col//8:03d}` |
-| `split` | str | `finetune` or `test` |
+| `split` | str | Empty until the spatial split script fills it; then `finetune` or `test` |
+| `timestamp` | str | UTC ISO 8601 time of the answer |
 
-Invariants: `cell_id` is unique; every `block_id` appears in exactly one `split`.
+Invariants: `(cell_id, annotator)` is unique; every `block_id` appears in exactly one `split`
+(for rows with a split). Consumers ignore `skip` rows.
 
-- **Written by:** labeling notebook (`label`, `annotator`) and the spatial split script
-  (`block_id`, `split`).
+- **Written by:** `hydroscope.data.labels` via `labeling/label.ipynb` (`label`, `annotator`,
+  `block_id`, `timestamp`) and the spatial split script (`split`).
 - **Read by:** Aguascalientes dataset, fine-tuning, evaluation, `experiment-auditor`.
 
 ## 3. Checkpoint

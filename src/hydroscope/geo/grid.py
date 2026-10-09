@@ -89,6 +89,20 @@ def cell_box(x0: float, y0: float, row: int, col: int, size: float = GRID_M) -> 
     return box(west, north - size, west + size, north)
 
 
+def cell_outline_latlon(geom_utm: Any) -> list[tuple[float, float]]:
+    """Closed outline of a cell as ``(lat, lon)`` pairs in EPSG:4326 (5 points, for ipyleaflet).
+
+    Args:
+        geom_utm: cell polygon in EPSG:32613.
+    """
+    from pyproj import Transformer
+
+    to_wgs84 = Transformer.from_crs(EXPORT_CRS, "EPSG:4326", always_xy=True)
+    xs, ys = geom_utm.exterior.coords.xy
+    lons, lats = to_wgs84.transform(list(xs), list(ys))
+    return [(float(lat), float(lon)) for lat, lon in zip(lats, lons, strict=True)]
+
+
 def build_grid(state: gpd.GeoDataFrame, raster_transform: Affine | None = None) -> gpd.GeoDataFrame:
     """Build the 640 m grid over the state.
 

@@ -20,6 +20,8 @@ dependencies:
   - matplotlib=3.*
   - pillow
   - ipywidgets=8.*
+  - ipyleaflet
+  - jupyterlab=4.*
   - pyyaml=6.*
   # Dev
   - pytest=8.*
