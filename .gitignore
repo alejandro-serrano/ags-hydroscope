@@ -251,3 +251,11 @@ CLAUDE.local.md
 .DS_Store
 
 PROMPTS.md
+
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+PROMPTS.md
+ARCHIVOS.txt
+LEEME-KIT.md
+.github/workflows/claude.yml
