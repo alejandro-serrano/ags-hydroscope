@@ -1,7 +1,5 @@
 """Building blocks shared by every training run: accumulation, resizing, loading, CLI."""
 
-from __future__ import annotations
-
 import argparse
 
 import torch

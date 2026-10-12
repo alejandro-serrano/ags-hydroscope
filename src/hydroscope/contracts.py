@@ -1,10 +1,6 @@
-"""Validation of the data contracts in docs/contracts.md."""
+"""Validation of the result JSON contract (contract 4 in docs/contracts.md)."""
 
-from __future__ import annotations
-
-from typing import Any
-
-RESULT_FIELDS: dict[str, str] = {
+RESULT_FIELDS = {
     "run_id": "str",
     "model": "str",
     "bands": "str",
@@ -25,38 +21,55 @@ RESULT_FIELDS: dict[str, str] = {
     "protocol_version": "str",
     "git_commit": "str",
 }
-"""Result JSON fields (contract 4) and their expected types."""
+"""Every field a result JSON must have, with the type we expect (as written in the contract)."""
 
-NULLABLE_RESULT_FIELDS = frozenset({"train_time_s", "peak_mem_mb", "epochs_to_95"})
-"""Result fields that may be ``None`` when they do not apply."""
+NULLABLE_RESULT_FIELDS = ("train_time_s", "peak_mem_mb", "epochs_to_95")
+"""Fields that may be ``None`` when they do not apply (e.g. peak memory on CPU)."""
 
 
 class ContractError(ValueError):
     """A record does not satisfy its data contract."""
 
 
-def _is_int(value: Any) -> bool:
+def is_int(value) -> bool:
+    # bool is a subclass of int in Python, so True/False must be rejected explicitly.
     return isinstance(value, int) and not isinstance(value, bool)
 
 
-def _is_float(value: Any) -> bool:
+def is_float(value) -> bool:
+    # An int is accepted where a float is expected (JSON writes 1.0 as 1).
     return isinstance(value, int | float) and not isinstance(value, bool)
 
 
-_CHECKS = {
-    "str": lambda v: isinstance(v, str),
-    "int": _is_int,
-    "float": _is_float,
-    "dict[str, float]": lambda v: (
-        isinstance(v, dict) and all(isinstance(k, str) and _is_float(x) for k, x in v.items())
-    ),
-    "list[list[int]]": lambda v: (
-        isinstance(v, list) and all(isinstance(row, list) and all(map(_is_int, row)) for row in v)
-    ),
-}
+def has_expected_type(value, expected: str) -> bool:
+    """True if ``value`` matches one of the type names used in ``RESULT_FIELDS``."""
+    if expected == "str":
+        return isinstance(value, str)
+    if expected == "int":
+        return is_int(value)
+    if expected == "float":
+        return is_float(value)
+    if expected == "dict[str, float]":
+        if not isinstance(value, dict):
+            return False
+        for key, item in value.items():
+            if not isinstance(key, str) or not is_float(item):
+                return False
+        return True
+    if expected == "list[list[int]]":
+        if not isinstance(value, list):
+            return False
+        for row in value:
+            if not isinstance(row, list):
+                return False
+            for item in row:
+                if not is_int(item):
+                    return False
+        return True
+    raise ValueError(f"unknown type name in RESULT_FIELDS: {expected!r}")
 
 
-def validate_result(result: dict[str, Any]) -> None:
+def validate_result(result: dict) -> None:
     """Check a result record against contract 4 of docs/contracts.md.
 
     Every field must be present with the expected type; fields in ``NULLABLE_RESULT_FIELDS`` may
@@ -75,7 +88,7 @@ def validate_result(result: dict[str, Any]) -> None:
         value = result[field]
         if value is None and field in NULLABLE_RESULT_FIELDS:
             continue
-        if not _CHECKS[expected](value):
+        if not has_expected_type(value, expected):
             problems.append(f"field '{field}' must be {expected}, got {type(value).__name__}")
     if problems:
         raise ContractError("invalid result: " + "; ".join(problems))

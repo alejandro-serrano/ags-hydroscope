@@ -5,13 +5,9 @@ later in the pipeline. The cache stores each split as one ``uint16`` array so th
 from a memory-mapped file instead of 27,000 GeoTIFFs.
 """
 
-from __future__ import annotations
-
 import json
 import os
-from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import torch
@@ -127,7 +123,7 @@ class EuroSATDataset(Dataset):
             "label": torch.tensor(int(self._y[index]), dtype=torch.long),
         }
 
-    def __getstate__(self) -> dict[str, Any]:
+    def __getstate__(self) -> dict:
         # Never pickle the memory maps (that would copy the whole array into each worker).
         state = self.__dict__.copy()
         state["_x"] = None
@@ -180,63 +176,66 @@ def write_split_cache(
     return x_path, y_path
 
 
-def compute_band_stats(
-    batches: Iterable[Any], band_names: Sequence[str]
-) -> dict[str, dict[str, float]]:
-    """Per-band mean and population std over all pixels, streaming in float64.
+def compute_band_stats(batches, band_names: list[str]) -> dict[str, dict[str, float]]:
+    """Per-band mean and std over all pixels of all batches (the "train mean/std" of class).
 
-    Each batch is an array-like of shape ``(N, C, H, W)`` with ``C == len(band_names)``. Batch
-    moments are merged with the parallel (Chan et al.) update, so the result does not depend on
-    how the data is chunked.
+    Each batch is an array-like of shape ``(N, C, H, W)`` with ``C == len(band_names)``. The data
+    is too big for one ``x.mean()`` call, so it is done in two passes over the batches, in
+    float64: first the mean per band, then the mean squared distance to it (population std).
+    The result is the same as ``x.mean(axis=(0, 2, 3))`` and ``x.std(axis=(0, 2, 3))`` on the
+    whole array, whatever the batch size.
 
     Returns:
         ``{band: {"mean": float, "std": float}}`` keyed by band name.
 
     Raises:
-        ValueError: if there are no batches or a batch has the wrong shape.
+        ValueError: if there are no pixels or a batch has the wrong shape.
     """
+    batches = list(batches)  # the batches are read twice
     n_bands = len(band_names)
+    for batch in batches:
+        if np.ndim(batch) != 4 or np.shape(batch)[1] != n_bands:
+            raise ValueError(
+                f"expected batches of shape (N, {n_bands}, H, W), got {np.shape(batch)}"
+            )
+
+    # Pass 1: mean per band.
     count = 0
-    mean = np.zeros(n_bands, dtype=np.float64)
-    m2 = np.zeros(n_bands, dtype=np.float64)
+    total = np.zeros(n_bands, dtype=np.float64)
     for batch in batches:
         arr = np.asarray(batch, dtype=np.float64)
-        if arr.ndim != 4 or arr.shape[1] != n_bands:
-            raise ValueError(f"expected batches of shape (N, {n_bands}, H, W), got {arr.shape}")
-        n_b = arr.shape[0] * arr.shape[2] * arr.shape[3]
-        if n_b == 0:
-            continue
-        mean_b = arr.mean(axis=(0, 2, 3))
-        m2_b = ((arr - mean_b[None, :, None, None]) ** 2).sum(axis=(0, 2, 3))
-        total = count + n_b
-        delta = mean_b - mean
-        mean = mean + delta * (n_b / total)
-        m2 = m2 + m2_b + delta**2 * (count * n_b / total)
-        count = total
+        total += arr.sum(axis=(0, 2, 3))
+        count += arr.shape[0] * arr.shape[2] * arr.shape[3]
     if count == 0:
         raise ValueError("no pixels to compute statistics from")
-    std = np.sqrt(m2 / count)
-    return {
-        band: {"mean": float(mean[i]), "std": float(std[i])} for i, band in enumerate(band_names)
-    }
+    mean = total / count
 
+    # Pass 2: mean squared distance to the mean, per band.
+    squared = np.zeros(n_bands, dtype=np.float64)
+    for batch in batches:
+        arr = np.asarray(batch, dtype=np.float64)
+        squared += ((arr - mean[None, :, None, None]) ** 2).sum(axis=(0, 2, 3))
+    std = np.sqrt(squared / count)
 
-def _iter_chunks(x: np.ndarray, chunk: int) -> Iterator[np.ndarray]:
-    for start in range(0, len(x), chunk):
-        yield x[start : start + chunk]
+    stats = {}
+    for i, band in enumerate(band_names):
+        stats[band] = {"mean": float(mean[i]), "std": float(std[i])}
+    return stats
 
 
 def train_band_stats(cache_dir: str | Path, chunk: int = 512) -> dict[str, dict[str, float]]:
     """Per-band statistics of the ms13 train split, read only from ``train_x.npy``.
 
-    The val and test caches are never opened, so no statistic leaks from them.
+    The val and test caches are never opened, so no statistic leaks from them. The cache is
+    memory-mapped and read in chunks of ``chunk`` patches.
     """
     x_path, _ = cache_paths(cache_dir, "train")
     x = np.load(x_path, mmap_mode="r")
-    return compute_band_stats(_iter_chunks(x, chunk), BAND_SETS["ms13"])
+    chunks = [x[start : start + chunk] for start in range(0, len(x), chunk)]
+    return compute_band_stats(chunks, list(BAND_SETS["ms13"]))
 
 
-def save_band_stats(stats: Mapping[str, Mapping[str, float]], path: str | Path) -> None:
+def save_band_stats(stats: dict[str, dict[str, float]], path: str | Path) -> None:
     """Write band statistics as JSON keyed by band name (parent directories are created)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

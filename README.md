@@ -15,7 +15,8 @@ Sentinel-2 land-use classification, pre-trained on EuroSAT and evaluated on Agua
 - **Questions:** in-domain accuracy, zero-shot generalization, recovery after fine-tuning
   (`head`, `last_block`), computational cost, and Grad-CAM explanations.
 - All models share one protocol ([docs/protocol.md](docs/protocol.md)); data formats are in
-  [docs/contracts.md](docs/contracts.md).
+  [docs/contracts.md](docs/contracts.md); the code follows the course notebooks
+  ([docs/code_style.md](docs/code_style.md)).
 
 ## Setup
 
@@ -50,7 +51,7 @@ src/hydroscope/   data, models, training, explain, geo
 configs/          one YAML per run (extends base.yaml)
 experiments/      result JSONs (script output only)
 paper/  slides/   IEEE paper and presentation
-docs/             protocol, contracts, data card, model card
+docs/             protocol, contracts, code style, data card, model card
 ```
 
 ## Citation

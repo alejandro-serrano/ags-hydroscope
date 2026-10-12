@@ -1,19 +1,16 @@
-"""YAML run configs with single-parent inheritance via an ``extends`` key."""
-
-from __future__ import annotations
+"""YAML run configs. A run config says ``extends: base.yaml`` and overrides a few keys."""
 
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
 
 import yaml
 
-RUN_KEYS = frozenset({"extends", "run_id", "model", "bands", "init"})
+RUN_KEYS = {"extends", "run_id", "model", "bands", "init"}
 """Keys a run config may set; everything else belongs to the shared protocol in base.yaml."""
 
 
-def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Return a new dict with ``override`` merged recursively into ``base``.
+def deep_merge(base: dict, override: dict) -> dict:
+    """Return a new dict with ``override`` merged into ``base``, one nested level at a time.
 
     Nested dicts are merged key by key; any other value in ``override`` replaces the base value.
     Neither input is modified.
@@ -27,8 +24,8 @@ def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]
     return merged
 
 
-def load_config(path: str | Path) -> dict[str, Any]:
-    """Load a YAML config, resolving ``extends`` relative to the file's directory.
+def load_config(path: str | Path) -> dict:
+    """Load a YAML config. ``extends`` names a parent file in the same folder.
 
     The returned dict is fully resolved and has no ``extends`` key.
     """

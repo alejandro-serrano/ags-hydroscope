@@ -4,8 +4,6 @@ All runs use fp32 and no autocast on every device (see ``PRECISION``), so that t
 are trained under identical numerics.
 """
 
-from __future__ import annotations
-
 import logging
 import os
 import warnings
