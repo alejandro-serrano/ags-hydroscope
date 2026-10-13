@@ -5,10 +5,12 @@ import torch
 from torch.utils.data import TensorDataset
 
 from hydroscope.training.loop_utils import (
+    NormalizedDataset,
     accumulation_steps,
     build_arg_parser,
     make_dataloader,
     resize_batch,
+    seed_worker,
 )
 
 
@@ -92,3 +94,28 @@ def test_arg_parser():
     assert args.max_steps == 100
     with pytest.raises(SystemExit):
         parser.parse_args([])
+
+
+def augmented_batches(seed: int) -> list[torch.Tensor]:
+    # 16 copies of the same asymmetric 4x4 image: any difference between them comes from augment.
+    image = torch.arange(16, dtype=torch.float32).view(1, 4, 4)
+    base = [{"image": image, "label": torch.tensor(0)} for _ in range(16)]
+    dataset = NormalizedDataset(base, torch.zeros(1), torch.ones(1), train=True, seed=seed)
+    loader = make_dataloader(
+        dataset, 4, shuffle=False, num_workers=2, seed=seed, worker_init_fn=seed_worker
+    )
+    return [x for x, _ in loader]  # 4 batches of (4, 1, 4, 4)
+
+
+def test_workers_draw_different_augmentations():
+    batches = augmented_batches(seed=0)
+    # Batch 0 comes from worker 0 and batch 1 from worker 1 (same for batches 2 and 3).
+    assert not torch.equal(batches[0], batches[1])
+    assert not torch.equal(batches[2], batches[3])
+
+
+def test_worker_augmentations_are_reproducible():
+    first = augmented_batches(seed=0)
+    second = augmented_batches(seed=0)
+    for a, b in zip(first, second, strict=True):
+        assert torch.equal(a, b)

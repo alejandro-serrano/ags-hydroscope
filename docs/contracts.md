@@ -62,19 +62,29 @@ Invariants: `(cell_id, annotator)` is unique; every `block_id` appears in exactl
 | `normalization` | object | `mean`: list[float], `std`: list[float], one value per input band, in band order |
 | `classes` | list[str] | Class names in model output order |
 | `protocol_version` | str | Protocol version used for training (e.g. `"1.0"`) |
+| `run_id` | str | Run id; the checkpoint file stem |
+| `train_time_s` | float | Total training time in seconds |
+| `time_per_epoch_s` | float | Mean seconds per epoch |
+| `peak_mem_mb` | float, nullable | Peak device memory in MB; `null` on CPU |
+| `epochs_to_95` | int | First epoch reaching 95 % of the best val macro-F1 |
+| `micro_batch` | int | Micro-batch size used in training |
+| `accum_steps` | int | Gradient accumulation steps used in training |
+| `git_commit` | str | Commit hash of the training code |
+| `git_dirty` | bool | `true` if `src/` or `configs/` had uncommitted changes (new files included) when training started |
+| `config` | object | Resolved run config (data paths, results dir, device), read by `evaluate` |
 
 - **Written by:** `hydroscope.training.train` (and `finetune`).
 - **Read by:** `hydroscope.training.evaluate`, `hydroscope.training.finetune`, Grad-CAM.
 
 ## 4. Result
 
-- **Path:** `experiments/results/{run_id}.json`
+- **Path:** `experiments/results/{run_id}_{split}.json`, e.g. `resnet50_rgb_imagenet_eurosat_test.json`
 - **Format:** JSON object, flat. All fields are always present; fields marked nullable are `null`
   when they do not apply.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `run_id` | str | Unique id of the run; matches the file name |
+| `run_id` | str | Unique id of the result; equals the file stem (`{checkpoint run_id}_{split}`) |
 | `model` | str | `resnet50` · `efficientnet_b0` · `vit_small` |
 | `bands` | str | `rgb` · `ms13` |
 | `init` | str | `imagenet` · `ssl4eo` |
@@ -93,8 +103,15 @@ Invariants: `(cell_id, annotator)` is unique; every `block_id` appears in exactl
 | `accum_steps` | int | Gradient accumulation steps per optimizer step (effective batch = `micro_batch` × `accum_steps`) |
 | `protocol_version` | str | Protocol version (e.g. `"1.0"`) |
 | `git_commit` | str | Commit hash of the code that produced the file |
+| `git_dirty` | bool | `true` if `src/` or `configs/` had uncommitted changes (new files included) at evaluation time; results for the paper must have `false` |
 
 Validated by `hydroscope.contracts.validate_result`.
+
+The training fields (`train_time_s`, `peak_mem_mb`, `epochs_to_95`, `micro_batch`, `accum_steps`)
+are copied from the checkpoint `.yaml`, so evaluation-only runs (e.g. `ags_test`) carry the
+training statistics of the checkpoint they evaluate. `patches_per_s`, `git_commit` and `git_dirty`
+are those of the evaluation itself. `train` and `evaluate` print a warning when `git_dirty` is
+true but do not stop.
 
 - **Written by:** `hydroscope.training.train`, `evaluate` and `finetune` only; never edited by hand.
 - **Read by:** `scripts/make_tables.py`, `scripts/make_figures.py`, `experiment-auditor`.

@@ -28,6 +28,7 @@ def valid_result():
         "accum_steps": 2,
         "protocol_version": "1.0",
         "git_commit": "0000000",
+        "git_dirty": False,
     }
 
 

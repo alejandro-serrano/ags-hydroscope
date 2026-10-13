@@ -25,3 +25,4 @@ finetune:
 output:
   checkpoint_dir: outputs/smoke/checkpoints
   results_dir: outputs/smoke/results
+  logs_dir: outputs/smoke/logs

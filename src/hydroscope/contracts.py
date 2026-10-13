@@ -20,6 +20,7 @@ RESULT_FIELDS = {
     "accum_steps": "int",
     "protocol_version": "str",
     "git_commit": "str",
+    "git_dirty": "bool",
 }
 """Every field a result JSON must have, with the type we expect (as written in the contract)."""
 
@@ -45,6 +46,8 @@ def has_expected_type(value, expected: str) -> bool:
     """True if ``value`` matches one of the type names used in ``RESULT_FIELDS``."""
     if expected == "str":
         return isinstance(value, str)
+    if expected == "bool":
+        return isinstance(value, bool)
     if expected == "int":
         return is_int(value)
     if expected == "float":

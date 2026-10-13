@@ -63,3 +63,4 @@ finetune:                         # Aguascalientes adaptation (protocol section 
 output:
   checkpoint_dir: checkpoints
   results_dir: experiments/results
+  logs_dir: experiments/logs
