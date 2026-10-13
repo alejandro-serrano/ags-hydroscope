@@ -1,0 +1,20 @@
+\begin{table*}[t]
+\centering
+\footnotesize
+\caption{Training cost of the eight EuroSAT runs on an Apple M2 Pro (fp32). Peak memory is the memory reserved by the MPS driver. Patches/s is inference throughput on the EuroSAT test set.}
+\label{tab:cost}
+\begin{tabular}{lrrrrr}
+\toprule
+Run & Params (M) & Train time (min) & Time/epoch (s) & Peak mem. (GiB) & Patches/s \\
+\midrule
+ResNet-50 / RGB / ImageNet & 23.5 & 58.3 & 233 & 4.31 & 208 \\
+ResNet-50 / MS13 / ImageNet & 23.6 & 42.0 & 252 & 4.31 & 184 \\
+ResNet-50 / MS13 / SSL4EO & 23.6 & 62.9 & 252 & 4.31 & 183 \\
+EfficientNet-B0 / RGB / ImageNet & 4.0 & 45.5 & 227 & 4.33 & 233 \\
+EfficientNet-B0 / MS13 / ImageNet & 4.0 & 57.8 & 231 & 4.33 & 214 \\
+ViT-S / RGB / ImageNet & 21.7 & 54.6 & 218 & 5.18 & 236 \\
+ViT-S / MS13 / ImageNet & 22.7 & 55.3 & 237 & 5.25 & 199 \\
+ViT-S / MS13 / SSL4EO & 22.7 & 59.3 & 237 & 5.25 & 199 \\
+\bottomrule
+\end{tabular}
+\end{table*}

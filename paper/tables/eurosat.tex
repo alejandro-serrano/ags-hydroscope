@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{EuroSAT test set (10 classes): overall accuracy and macro-F1 of the eight runs. Best value per column in bold.}
+\label{tab:eurosat}
+\begin{tabular}{lrr}
+\toprule
+Run & Accuracy & Macro-F1 \\
+\midrule
+ResNet-50 / RGB / ImageNet & 0.984 & 0.983 \\
+ResNet-50 / MS13 / ImageNet & 0.985 & 0.985 \\
+ResNet-50 / MS13 / SSL4EO & \textbf{0.993} & \textbf{0.993} \\
+EfficientNet-B0 / RGB / ImageNet & 0.984 & 0.984 \\
+EfficientNet-B0 / MS13 / ImageNet & 0.985 & 0.985 \\
+ViT-S / RGB / ImageNet & 0.991 & 0.991 \\
+ViT-S / MS13 / ImageNet & 0.990 & 0.990 \\
+ViT-S / MS13 / SSL4EO & 0.987 & 0.987 \\
+\bottomrule
+\end{tabular}
+\end{table}

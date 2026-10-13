@@ -247,6 +247,7 @@ CLAUDE.local.md
 *.out
 
 *.pdf
+!paper/figures/*.pdf
 
 .DS_Store
 

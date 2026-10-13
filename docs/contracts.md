@@ -131,7 +131,7 @@ are those of the evaluation itself. `train` and `evaluate` print a warning when 
 true but do not stop.
 
 - **Written by:** `hydroscope.training.train`, `evaluate` and `finetune` only; never edited by hand.
-- **Read by:** `scripts/make_tables.py`, `scripts/make_figures.py`, `experiment-auditor`.
+- **Read by:** `scripts/make_results.py`, `experiment-auditor`.
 
 ## 5. Grid
 

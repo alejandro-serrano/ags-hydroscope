@@ -1,0 +1,20 @@
+\begin{table*}[t]
+\centering
+\footnotesize
+\caption{Macro-F1 on the Aguascalientes test split. The class set is the 9 classes with at least 10 test patches (1 class excluded and reported separately). EuroSAT F1 is the macro-F1 of the EuroSAT test result over the same classes. Drop = EuroSAT F1 minus zero-shot; recovery = (fine-tuned minus zero-shot) / drop, shown as -- when the drop is not positive. Best F1 per column in bold.}
+\label{tab:ags}
+\begin{tabular}{lrrrrrrr}
+\toprule
+Run & EuroSAT F1 & Zero-shot & Head & Last block & Drop & Rec. head & Rec. last block \\
+\midrule
+ResNet-50 / RGB / ImageNet & 0.983 & 0.259 & 0.308 & 0.278 & 0.724 & 0.068 & 0.026 \\
+ResNet-50 / MS13 / ImageNet & 0.984 & 0.271 & 0.339 & 0.371 & 0.713 & 0.095 & 0.140 \\
+ResNet-50 / MS13 / SSL4EO & \textbf{0.993} & \textbf{0.354} & 0.372 & \textbf{0.525} & 0.639 & 0.029 & 0.268 \\
+EfficientNet-B0 / RGB / ImageNet & 0.984 & 0.271 & 0.275 & 0.400 & 0.713 & 0.006 & 0.181 \\
+EfficientNet-B0 / MS13 / ImageNet & 0.984 & 0.196 & 0.217 & 0.361 & 0.788 & 0.027 & 0.209 \\
+ViT-S / RGB / ImageNet & 0.991 & 0.326 & \textbf{0.380} & 0.441 & 0.665 & 0.081 & 0.173 \\
+ViT-S / MS13 / ImageNet & 0.989 & 0.287 & 0.340 & 0.361 & 0.703 & 0.076 & 0.106 \\
+ViT-S / MS13 / SSL4EO & 0.987 & 0.287 & 0.305 & 0.428 & 0.699 & 0.025 & 0.201 \\
+\bottomrule
+\end{tabular}
+\end{table*}
