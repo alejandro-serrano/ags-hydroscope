@@ -1,3 +1,39 @@
 \section{Conclusions}\label{sec:conclusions}
 
-\todo{Answers to RQ-a to RQ-e, selected model (selection rule), future work. Target length: 0.25 page.}
+Our goal was to measure how much a land-use classifier trained on EuroSAT loses in semi-arid
+Aguascalientes, and how much of that loss light fine-tuning on local labels wins back. We
+compared ResNet-50, EfficientNet-B0 and ViT-S/16 under one shared protocol, and three findings
+stand out.
+
+\begin{enumerate}
+  \item \emph{The models were almost tied on EuroSAT, but all of them dropped sharply in
+  Aguascalientes (RQ-a, RQ-b).} EuroSAT macro-F1 ranged from \EuroSATMin{} to \EuroSATMax, and
+  without local training the drop ranged from \DropMin{} to \DropMax. This means that a
+  near-perfect EuroSAT score does not guarantee a useful model in another region; the model has
+  to be evaluated on local labels.
+  \item \emph{Light fine-tuning won back only part of the drop (RQ-c).} Training the classifier
+  alone (\texttt{head}) recovered at most \HeadRecoveryMax{} of the drop, and our runs cannot
+  tell whether the features were too weak or the classifier was undertrained. Fine-tuning the
+  last block (\texttt{last\_block}) recovered between \RecoveryMin{} and \RecoveryMax{}
+  (Eq.~\ref{eq:recovery}). This means that most of the drop remained in every run after
+  fine-tuning.
+  \item \emph{The effect of the input bands and the weights depended on the model (RQ-d,
+  RQ-e).} With ImageNet weights, 13 bands helped only ResNet-50 in Aguascalientes. With 13
+  bands, the SSL4EO-S12 runs gave the highest observed macro-F1 after \texttt{last\_block} for
+  both ResNet-50 and ViT-S, but they also used another normalization, so the gap cannot be
+  credited to the weights alone. This means that the answer depends on the combination of model, bands and weights, not
+  only on CNN versus ViT.
+\end{enumerate}
+
+The selection rule, fixed before any result, chose ResNet-50/MS13/SSL4EO with
+\texttt{last\_block} fine-tuning, with a macro-F1 of \AgsLastBlockBest, \SelectionMargin{} above
+the runner-up. Among the six ImageNet runs, where the three models compete on equal weights,
+ViT-S/RGB/ImageNet came first with \ImageNetLastBlockBest, \ImageNetSelectionMargin{} above the
+next run. On cost (RQ-a), EfficientNet-B0 had far fewer parameters but a similar time per epoch,
+and ViT-S/RGB/ImageNet had the highest observed throughput, \PatchesPerSecMax{} patches/s.
+
+What we learned is that the domain shift outweighed the differences between the models, so a
+model for a new region has to be judged on local labels and a spatially separated test set, not
+on EuroSAT alone. The selected model is the starting point for the second stage of the
+project, a monthly land-use monitor of the state. Section~\ref{sec:discussion} lists the
+experiments that would make these answers firmer.
