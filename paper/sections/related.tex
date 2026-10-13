@@ -1,3 +1,55 @@
 \section{Related Work}\label{sec:related}
 
-\todo{CNNs and Vision Transformers on EuroSAT and Sentinel-2, SSL4EO-S12 pre-training, and geographic domain shift in remote sensing. Cite only keys in references.bib (task F1). Target length: 0.75 page.}
+Convolutional neural networks (CNNs) are the usual starting point for land-use classification of
+Sentinel-2 patches. EuroSAT~\cite{helber2019eurosat}, the dataset we trained on, was introduced
+together with a benchmark of deep CNNs over its 13 spectral bands and 10 classes, and those CNNs
+reached a high overall accuracy. BigEarthNet~\cite{sumbul2019bigearthnet} is a much larger
+Sentinel-2 archive in which each patch has several land-cover labels. Its authors found that a
+shallow CNN trained on it gave much higher accuracy than a state-of-the-art CNN pre-trained on
+ImageNet, a result that suggests that features learned on natural photographs do not fully
+transfer to Sentinel-2 images. Because both
+benchmarks were introduced with CNN baselines, CNNs are the natural reference when a new model is
+tested on Sentinel-2 patches. We used two CNN families. ResNet~\cite{he2016resnet} learns residual
+functions, which makes very deep networks easier to optimize. EfficientNet~\cite{tan2019efficientnet}
+scales depth, width and input resolution together with one compound coefficient, and its authors
+report better accuracy and efficiency than previous CNNs.
+
+Transformers reached image classification later. The Vision Transformer
+(ViT)~\cite{dosovitskiy2020vit} applies a pure transformer to a sequence of image patches,
+without convolutions. When pre-trained on large amounts of data, it obtained excellent results
+compared with state-of-the-art CNNs while needing fewer computational resources to train. Bazi
+et~al.~\cite{bazi2021vit} applied ViT to remote-sensing scene classification. In their model,
+multihead attention derives long-range relations between pixels, and on four remote-sensing
+datasets the model showed promising results compared with state-of-the-art methods. SatMAE~\cite{cong2022satmae}
+went one step further and pre-trained transformers for temporal or multispectral satellite
+images with a masked autoencoder. Its authors found it beneficial to encode the spectral bands as
+groups with their own spectral position encodings, and they report gains in transfer learning,
+including land-cover classification. This suggests that a transformer can use extra spectral
+bands when its pre-training is designed for them, which is relevant to our 13-band runs.
+
+Self-supervised pre-training addresses a different gap: labels are scarce, while unlabeled
+satellite images are plentiful. A review by Wang et~al.~\cite{wang2022sslreview} introduces
+self-supervised learning for remote sensing and notes that most of its potential in Earth
+observation remains locked. Seasonal Contrast (SeCo)~\cite{manas2021seco} starts from the same
+observation that motivates our study: models pre-trained on ImageNet may not generalize to remote
+sensing because of the domain gap. SeCo gathers unlabeled images of many locations at different
+times and uses invariance to time and position to learn transferable representations; its models outperformed their
+ImageNet counterparts on several downstream tasks. SSL4EO-S12~\cite{wang2023ssl4eo} provides a
+large, global and multiseasonal corpus of Sentinel-1 and Sentinel-2 images, with pre-trained
+models for methods such as MoCo and DINO. We used its ResNet-50 and ViT-S/16 weights as the
+self-supervised alternative to ImageNet.
+
+The last line of work concerns what happens when the test region differs from the training
+region. Tuia et~al.~\cite{tuia2016domain} note that when training samples come from a different
+spatial region than the one being mapped, spectral shifts between the two distributions are
+likely to make the model fail. They attribute such shifts to differences in acquisition and
+atmospheric conditions or to changes in the observed objects, and they review domain adaptation
+methods designed to be robust to such shifts. WILDS~\cite{koh2021wilds} collects real distribution shifts,
+including shifts across time and location in satellite imaging, and shows that standard training
+gives much lower performance out of distribution than in distribution. Measuring such a shift
+also requires an honest test set. Roberts et~al.~\cite{roberts2017cv} show that random
+cross-validation on spatially structured data can seriously underestimate the prediction error,
+and they recommend block cross-validation, where the data are split by blocks instead of at
+random. These studies leave a practical question open for our setting: how two CNNs and a ViT,
+trained under one shared protocol, behave when they move from European Sentinel-2 patches to a
+semi-arid region of Mexico, measured on hand-labeled patches split by spatial blocks.

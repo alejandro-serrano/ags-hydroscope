@@ -15,7 +15,7 @@ chose the small ViT because its size is close to that of ResNet-50: with RGB inp
 21.7~M parameters against 23.5~M, while EfficientNet-B0 has 4.0~M (Table~\ref{tab:cost}). A
 CNN versus ViT gap is therefore not just a gap in model size.
 
-All three models started from ImageNet weights (timm). For ResNet-50 and ViT-S/16 we also used
+All three models started from ImageNet~\cite{deng2009imagenet} weights (timm). For ResNet-50 and ViT-S/16 we also used
 SSL4EO-S12 weights~\cite{wang2023ssl4eo}, learned without labels on Sentinel-2 images: MoCo for
 ResNet-50 and DINO for ViT-S/16. These weights exist only for the 13 L1C bands, and they expect
 TorchGeo's normalization, $x/\num{10000}$. EfficientNet-B0 has no SSL4EO-S12 weights, so it has only

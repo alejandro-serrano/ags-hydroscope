@@ -1,3 +1,58 @@
 \section{Introduction}\label{sec:introduction}
 
-\todo{Motivation: land-use monitoring in semi-arid Aguascalientes and the geographic domain shift from EuroSAT (Europe). Research questions RQ-a to RQ-e (docs/protocol.md, section 1). Contributions. Target length: 0.75 page.}
+Our goal was to measure how much a land-use classifier trained on European Sentinel-2 images
+loses when it is used in Aguascalientes, a semi-arid state in central Mexico, and how much of
+that loss a small set of local labels can win back. We compared two convolutional neural
+networks (CNNs), ResNet-50 and EfficientNet-B0, with a Vision Transformer, ViT-S/16. All three
+were trained on EuroSAT and then tested on patches of Aguascalientes that we labeled by hand.
+
+Land use matters in Aguascalientes because of water. The state water plan names the
+overexploitation of groundwater, the main source of supply, as the central problem of the
+state~\cite{inagua2022planhidrico}. The same plan states that the demand for water comes mainly
+from agricultural and urban public use. Both uses can be seen from a satellite: farmland and the
+city are land-use classes that a Sentinel-2 image can show. Monitoring land use is therefore one
+way to follow the pressure on water, although it does not measure the water itself.
+
+Monitoring land use in Aguascalientes faced a practical problem. There were no labeled Sentinel-2 patches of Aguascalientes,
+and the land-use models available had been trained on European landscapes such as those of
+EuroSAT. The long-term goal of the project is a monthly land-use monitor of the state, which is
+the second stage of this work. That monitor needs a model that works in Aguascalientes, so this
+paper chooses one and measures how well it transfers.
+
+The difficulty has a name: geographic domain shift. A model learns how each class looks in the
+region where it was trained, and a new region can show the same class with other colors and
+textures. A model that learned Forest as a dark, closed canopy and Pasture as green grass has
+little reason to recognize their versions in semi-arid Aguascalientes, imaged in April, at the
+peak of the dry season. The size of this loss can only be measured
+fairly on a test set that is spatially separated from the labels used to adapt the model.
+
+We organized the study around five research questions. Which of ResNet-50, EfficientNet-B0 and
+ViT-S/16 performs best on EuroSAT, and at what computational cost (RQ-a)? How much does each
+model degrade on Aguascalientes without any local training, that is, zero-shot (RQ-b)? How much
+of that degradation does light fine-tuning recover (RQ-c)? Does 13-band input outperform RGB
+(RQ-d)? And do self-supervised SSL4EO-S12 weights outperform ImageNet weights (RQ-e)?
+
+The short answer is that the domain shift outweighed the differences between the models. On
+EuroSAT, the eight runs reached a macro-F1, the average of the per-class F1 scores, between
+\EuroSATMin{} and \EuroSATMax. In Aguascalientes, without local training, they lost between
+\DropMin{} and \DropMax{} in macro-F1, and fine-tuning the last block recovered at most
+\RecoveryMax{} of that drop (Eq.~\ref{eq:recovery}). The highest observed macro-F1 after fine-tuning,
+\AgsLastBlockBest, came from ResNet-50 with 13 bands and SSL4EO-S12 weights, the model we
+selected.
+
+Our contributions are the following:
+\begin{itemize}
+  \item A comparison of ResNet-50, EfficientNet-B0 and ViT-S/16 under one shared training
+  protocol, including RGB versus 13-band input and ImageNet versus SSL4EO-S12 weights.
+  \item A measurement of the drop from EuroSAT to Aguascalientes and of its partial recovery
+  with two light fine-tuning modes, on \num{1102} hand-labeled patches (561 for fine-tuning and
+  541 for testing) split by blocks of 8$\times$8 cells (5.12~km).
+  \item Open code, labels and checkpoints, so that the experiments can be repeated and the
+  models reused.
+\end{itemize}
+
+The rest of the paper is organized as follows. Section~\ref{sec:related} reviews related work.
+Section~\ref{sec:data} describes the two datasets and the spatial split, and
+Section~\ref{sec:methodology} the models, the shared protocol and the metrics.
+Section~\ref{sec:results} reports the results, Section~\ref{sec:discussion} discusses their
+likely causes and limits, and Section~\ref{sec:conclusions} concludes.

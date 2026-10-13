@@ -6,8 +6,8 @@ identical so that the main thing that changes between the two is the landscape.
 
 \subsection{EuroSAT}
 
-We used EuroSAT MS~\cite{helber2019eurosat}, Sentinel-2 L1C patches of 13$\times$64$\times$64
-pixels at 10~m in 10 land-use classes. We kept the official TorchGeo split of \num{16200} training,
+We used EuroSAT MS~\cite{helber2019eurosat}, Sentinel-2~\cite{drusch2012sentinel2} L1C patches of 13$\times$64$\times$64
+pixels at 10~m in 10 land-use classes. We kept the official TorchGeo~\cite{stewart2022torchgeo} split of \num{16200} training,
 \num{5400} validation and \num{5400} test patches, and the TorchGeo band order (B01 to B12, with B8A last).
 The RGB input is B04, B03 and B02 taken from the same 13-band files. We chose this so that the
 RGB and 13-band runs see the same patches and the same pixel values; only the number of bands
@@ -16,7 +16,7 @@ come from that processing instead of from the bands.
 
 \subsection{Aguascalientes composite and grid}
 
-We built one Sentinel-2 composite of the state for April 2024 in Google Earth Engine. We used
+We built one Sentinel-2 composite of the state for April 2024 in Google Earth Engine~\cite{gorelick2017gee}. We used
 the L1C harmonized collection (\texttt{COPERNICUS/S2\_HARMONIZED}, digital numbers equal to
 reflectance $\times$ \num{10000}) because EuroSAT is also L1C. With surface reflectance (L2A), the
 models would face a change of processing level on top of the change of region. We chose April
@@ -46,7 +46,7 @@ no EuroSAT class (greenhouses, quarries, bare rock or soil) or that raised any d
 skipped and never used. This reduces label noise in the test set, but it also means the test
 set does not measure errors on those covers.
 
-Neighboring cells are almost identical, so we split by space and not by cell. A random cell
+Neighboring cells are almost identical, so we split by space and not by cell~\cite{roberts2017cv}. A random cell
 split would put near-duplicates in the fine-tune and test sets and inflate the scores. Instead,
 we grouped the cells into blocks of 8$\times$8 cells (5.12~km), and each block went whole to
 one split. With seed 0, we shuffled the block list \num{20000} times, cut it half/half, and kept the
