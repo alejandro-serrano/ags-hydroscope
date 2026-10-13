@@ -1,3 +1,183 @@
 \section{Discussion}\label{sec:discussion}
 
-\todo{Interpretation per research question, Grad-CAM evidence, limitations: one seed, small test set, single month (April 2024), 64-px patches, no SSL weights for EfficientNet, 541 test / 561 fine-tune patches; River (7 test patches) reported separately and excluded from macro-F1; 35 of the 541 test patches border a fine-tune cell across a block edge because the split has no buffer zone. Target length: 1 page.}
+Section~\ref{sec:results} described what happened; this section discusses why. Every
+configuration was trained once, and no experiment was designed to isolate a cause, so each
+explanation below is a hypothesis that fits the evidence, not a proven mechanism. We follow the
+research questions: the drop (RQ-b), fine-tuning (RQ-c), the architectures (RQ-a), and the input
+bands and weights (RQ-d, RQ-e). We then discuss the Grad-CAM maps, the cost and the limitations.
+
+\subsection{Why the drop was so large (RQ-b)}
+
+We could observe two sources of the drop: the pixels changed, and the classes looked different.
+To check the pixels, we compared the median of each band of the April composite with the EuroSAT
+training statistics as a z-score, $z = (\tilde{x}_{\mathrm{Ags}} - \mu_{\mathrm{EuroSAT}}) /
+\sigma_{\mathrm{EuroSAT}}$. The visible bands (B02--B04) lay \ZVisibleMin{} to \ZVisibleMax{}
+standard deviations above the EuroSAT mean and the SWIR bands (B11, B12) \ZSwirMin{} to
+\ZSwirMax{} above it, while the near-infrared bands (B08, B8A) stayed within \ZNirMax. This
+pattern is consistent with a landscape of bare soil and dry vegetation, which reflect more
+visible and SWIR light than the green fields and forests of EuroSAT. Normalization does not
+remove this shift, because it applies the same EuroSAT statistics (or, for SSL4EO-S12, the same
+fixed scale) to both datasets. In other words, a typical Aguascalientes pixel looked to the
+network like an unusually bright EuroSAT pixel.
+
+B10 was the only band that this screening flagged, with $z = \ZBandTen$. B10 is the cirrus band:
+it sits in a strong water-vapor absorption band and sees little of the ground, so one possible
+reason is the atmosphere, a drier air column over the high plateau or thin cirrus that the cloud
+mask missed, rather than a different land cover; we did not test it. Since the screening uses
+one median per band for the whole state, it says nothing about individual classes.
+
+The second source is that the same class does not look the same. Fig.~\ref{fig:study_area}(b)
+shows it: the EuroSAT Forest patch is a dark, closed canopy, while the Aguascalientes one is a
+gray, open cover crossed by tracks. April is the peak of the dry season, so rainfed fields are bare
+or fallow, managed grass is brown, and natural cover is xeric scrub on dry, rocky ground, which
+resembles neither European forest nor European grassland. This is consistent with
+Fig.~\ref{fig:ags_f1}(a), where Forest and Pasture, two classes whose European look depends on
+green vegetation, were at or near zero in every run, and with Fig.~\ref{fig:confusion}(a), where
+Forest patches went to HerbaceousVegetation. AnnualCrop, whose EuroSAT patches already include
+pale, bare parcels (Fig.~\ref{fig:study_area}(b)), kept a nonzero F1 in every run. Some objects
+also have no EuroSAT counterpart. The solar park in Fig.~\ref{fig:gradcam}(b), which we labeled
+Industrial, looks nothing like the warehouse roofs of EuroSAT, and a model can only answer with
+one of the classes it knows.
+
+\subsection{Why fine-tuning helped only in part (RQ-c)}
+
+A likely reason for the small gain of \texttt{head} lies in the features. If the frozen EuroSAT
+features had separated the Aguascalientes classes, a new linear classifier trained on 561
+labeled patches would likely have found the boundaries. It did not, which suggests that the
+differences that matter here, such as canopy density on dry ground or a faint parcel pattern on
+bare soil, were not well represented in features learned to separate European classes. A
+linear layer can redraw boundaries, but it cannot create a feature the backbone does not
+compute.
+
+A second explanation is that the classifier was undertrained. With 561 patches, a batch of 64
+and 10 epochs, \texttt{head} took only \FineTuneSteps{} optimizer steps, starting at a learning
+rate of $10^{-4}$ that then decayed with the cosine schedule. The training logs agree: in
+\HeadLossFallingRuns{} of the \NumRuns{} runs, the \texttt{head} training loss was lower at the
+last epoch than at the middle one, so it had not yet leveled off. In other words, a longer
+\texttt{head} training might have gained more. Both explanations predict a small gain, so our
+runs cannot separate them; a \texttt{head} run trained until its loss stops falling would.
+
+\texttt{last\_block} adapts the high-level features themselves, which is consistent with its
+larger gains. Still, the largest part of the drop remained, and we see three likely limits.
+First, 561 labels are few, and several classes have a few dozen fine-tune patches or fewer
+(Table~\ref{tab:ags_classes}). Second, the 10 fixed epochs had no validation split to choose a
+better stopping point. Third, in the two CNNs the frozen layers kept their EuroSAT
+BatchNorm statistics, so the spectral shift may still have passed through them before reaching
+the trained block. The mode
+also has a confound: it trains \LastBlockShareResNet\,\%, \LastBlockShareEffNet\,\% and
+\LastBlockShareViT\,\% of the parameters of ResNet-50, EfficientNet-B0 and ViT-S, so the
+recovery of different architectures is not a like-for-like comparison.
+
+The ResNet-50/RGB/ImageNet run, where \texttt{last\_block} gave a lower macro-F1 than
+\texttt{head}, has two possible explanations. It trained the largest share,
+\LastBlockShareResNet\,\% of a model of the size listed in Table~\ref{tab:cost}, on 561 patches,
+which leaves room to fit the fine-tune split instead of the region. The class-weighted loss of
+Eq.~\eqref{eq:class_weights} also pushed predictions away from HerbaceousVegetation, whose F1 fell
+more in this run than in any other (Fig.~\ref{fig:ags_f1}(b)). However, the two 13-band
+ResNet-50 runs trained the same share with the same loss and did gain from \texttt{last\_block},
+so neither reason explains the run alone. With one seed, we cannot separate them from an unlucky
+run.
+
+\subsection{CNNs versus the Vision Transformer (RQ-a)}
+
+On EuroSAT the architecture made little difference (Table~\ref{tab:eurosat}), probably because
+the benchmark is close to its ceiling for all three models. In Aguascalientes, among the RGB
+ImageNet runs, ViT-S had the highest observed macro-F1 in the zero-shot, \texttt{head} and
+\texttt{last\_block} columns of Table~\ref{tab:ags}. The first two columns are free of the
+\texttt{last\_block} confound, because there the three models train the same part: nothing, or
+only the classifier. With 13 bands and ImageNet weights, however, ResNet-50 came first after
+\texttt{last\_block}, so the ViT-S lead is tied to the RGB input in our data.
+
+One hypothesis is global context against local texture. Self-attention relates every token to
+every other one, which lets a ViT use long-range relations between pixels~\cite{bazi2021vit},
+while a CNN builds its features from local neighborhoods. If the arrangement of a scene, such as
+parcel boundaries or a street grid, carried over to Aguascalientes better than its color and
+texture, a model that weighs the whole patch would lose less. The Grad-CAM maps are consistent
+with this: ViT-S maps spread over the whole patch, while CNN maps cover one compact region. We
+cannot confirm the hypothesis, for two reasons besides the single seed
+(Section~\ref{sec:limitations}). Grad-CAM on a ViT, computed on \texttt{norm1} of the last
+block, is an approximation, so part of the spread may come from the method. And
+\texttt{last\_block} trains only \LastBlockShareViT\,\% of ViT-S. With 561 labels, training
+fewer parameters may help or hurt, so this confound could favor either family.
+
+\subsection{RGB versus 13 bands and the pre-trained weights (RQ-d, RQ-e)}
+
+With ImageNet weights, the non-RGB bands entered through filters initialized as the mean of the
+RGB filters, so they had no pre-trained meaning. Whatever they learned came from EuroSAT alone,
+and the SWIR bands, among the most shifted in our screening, carried that shift straight into the
+network. This is consistent with EfficientNet-B0 and ViT-S scoring lower with 13 bands.
+ResNet-50 is the exception, and our runs cannot tell why. The answer to RQ-d therefore depends
+on the model.
+
+The SSL4EO-S12 weights were learned on all 13 bands, from images sampled worldwide around
+populated cities in four seasons~\cite{wang2023ssl4eo}. Every band thus had a pre-trained
+meaning, and the pre-training may have included dry landscapes and spectra closer to
+Aguascalientes than EuroSAT. This is consistent with the higher macro-F1 of both 13-band
+SSL4EO-S12 runs after \texttt{last\_block}. A possible reason why the ViT-S gain appeared only
+after \texttt{last\_block}, and not zero-shot, is that EuroSAT training mapped the features to
+European classes, and only local training re-mapped them. Two facts keep us from crediting the
+weights. The SSL4EO-S12 runs also used another normalization, $x/\num{10000}$, which changes
+how the shifted bands reach the first layer. And ViT-S/MS13/SSL4EO was slightly lower than its
+ImageNet counterpart on EuroSAT, so the benefit is not uniform.
+
+\subsection{What the Grad-CAM maps suggest}
+
+In Aguascalientes, many maps fall away from the object that defines the class, which is
+consistent with models looking for European cues that the patches lack. The solar park of
+Fig.~\ref{fig:gradcam}(b) is an out-of-distribution object: no model centered its map on the
+panels, and none predicted Industrial. Fig.~\ref{fig:gradcam_selected} adds one
+encouraging case: after \texttt{last\_block}, the selected model predicted the AnnualCrop patch
+correctly, and its map moved from one corner to a wider part of the fields. One patch, however,
+shows a possible behavior, not a general one.
+
+The main error after fine-tuning, HerbaceousVegetation predicted as Forest
+(Fig.~\ref{fig:confusion}(b)), has a likely reason in the landscape. The two such patches in
+Fig.~\ref{fig:gradcam_selected} show rough ground with dark areas, and one is almost entirely
+dark. In Aguascalientes, Forest is oak and pine on the western ranges, dark even in April, so
+xeric scrub on rugged hills shares its two most visible cues: dark tone and rough relief. The
+guide separates them with a threshold, continuous canopy over 70\,\% of the cell, on what is
+in reality a gradual change from scrub to open woodland to forest. The class weights may add
+to it: Forest has far fewer fine-tune patches than HerbaceousVegetation
+(Table~\ref{tab:ags_classes}), so it gets a much larger weight in
+Eq.~\eqref{eq:class_weights}, and borderline patches are pushed toward it.
+
+\subsection{Cost (RQ-a)}
+
+Table~\ref{tab:cost} shows that EfficientNet-B0 has far fewer parameters than the other two
+models but a similar time per epoch. We see two possible reasons. First, on the MPS backend the
+time may depend more on the number of layers and on moving activations through memory than on
+arithmetic, and EfficientNet-B0 has many small layers. Second, the three models may share a
+bottleneck in data loading. Every run used the same loader with two worker processes, so if the
+loader could not feed the GPU fast enough, all three models would wait about the same time for
+data at each step, whatever their size. We did not profile the runs or time the loader on its
+own, so we cannot tell the two reasons apart. For the second stage of the project, monthly inference over the whole
+state, the useful number is patches/s; there, ViT-S/RGB/ImageNet had the highest observed
+throughput, and the 13-band input cost throughput in every model.
+
+\subsection{Limitations}\label{sec:limitations}
+
+Our results have eight limits. First, each configuration was trained once with seed 0 and no
+paired test was run, so small gaps between runs may change with another seed. Second, we used one
+month, April 2024, so season and region are mixed in the shift and the rainy season is not
+covered. Third, a single annotator labeled the cells, with no agreement measure; the boundaries
+between scrub, open woodland and pasture depend on judgment. Fourth, the test set has 541
+patches, River only 7, and several classes a few dozen or fewer, so per-class F1 is noisy; skipped
+covers, such as greenhouses and quarries, are not measured at all. Fifth, 35 test patches border
+a fine-tune cell because the split has no buffer zone, so the fine-tuned scores may be slightly
+optimistic. Sixth, the 64-px patches were resized to 224 pixels, which adds no detail and no
+context beyond the cell. Seventh, we used L1C data without atmospheric correction, so part of the
+spectral shift, as B10 suggests, may be atmospheric. Eighth, peak memory is what the MPS driver
+reserved, not what each model needs, and EfficientNet-B0 had no SSL4EO-S12 weights, so RQ-e was
+answered for two models only.
+
+\subsection{Future work}
+
+The most direct next step is to train each configuration with several seeds, which would allow a
+paired test between models. A buffer zone between fine-tune and test blocks would remove the
+adjacency risk, and a fine-tuning mode that trains the same share of parameters in every model
+would remove the main confound of the CNN versus ViT comparison. Multi-season composites, which
+are part of the planned second stage of the project, would separate the effect of the dry season
+from that of the region. More local labels, from a second annotator, would both help fine-tuning
+and measure label noise. Finally, other self-supervised Sentinel-2 weights and multimodal input,
+such as radar, are worth testing. Radar sees through clouds and measures structure and
+moisture, information that the optical bands do not provide.

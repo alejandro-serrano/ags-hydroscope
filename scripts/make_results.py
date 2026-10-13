@@ -4,9 +4,16 @@ Run: python scripts/make_results.py
 Every number comes from the JSON results or the CSV training logs; nothing is typed by hand.
 Outputs: paper/tables/*.tex, paper/tables/summary.csv, paper/tables/macros.tex (the numbers
 quoted in the text, read from summary.csv) and paper/figures/*.pdf.
+macros.tex also holds two numbers that are not results: the per-band z-scores of the
+Aguascalientes composite, read from docs/data_ags_check.md (written by
+scripts/check_ags_raster.py), the share of parameters trained in last_block mode, counted
+with the model factory, and two fine-tuning numbers: the optimizer steps of one run (from
+configs/base.yaml and data/ags/labels.csv) and how many head runs still lowered their training
+loss in the second half (from experiments/logs/*_ft-head.csv).
 """
 
 import json
+import math
 from pathlib import Path
 
 import matplotlib
@@ -17,11 +24,19 @@ import numpy as np
 import pandas as pd
 from matplotlib.patches import Rectangle
 
+from hydroscope.config import load_config
+from hydroscope.data.eurosat import BAND_SETS
+from hydroscope.data.labels import SKIP, load_labels
+from hydroscope.models.factory import build_model, count_params, last_block_params
+
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = ROOT / "experiments" / "results"
 LOGS_DIR = ROOT / "experiments" / "logs"
 TABLES_DIR = ROOT / "paper" / "tables"
 FIGURES_DIR = ROOT / "paper" / "figures"
+AGS_CHECK_REPORT = ROOT / "docs" / "data_ags_check.md"
+BASE_CONFIG = ROOT / "configs" / "base.yaml"
+AGS_LABELS = ROOT / "data" / "ags" / "labels.csv"
 
 MODEL_ORDER = ["resnet50", "efficientnet_b0", "vit_small"]
 BANDS_ORDER = ["rgb", "ms13"]
@@ -404,9 +419,89 @@ def paper_macros(summary: pd.DataFrame, selection_all: dict, selection_imagenet:
     return macros
 
 
+def band_zscores(report_path: Path) -> dict[str, float]:
+    """z-score of each band, read from the band table of docs/data_ags_check.md.
+
+    z = (Aguascalientes median - EuroSAT train mean) / EuroSAT train std.
+    Table columns: Band, p2, median, p98, mean, std, z, Flag, Within 3 std.
+    """
+    zscores = {}
+    for line in report_path.read_text().splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) == 9 and cells[0] in BAND_SETS["ms13"]:
+            zscores[cells[0]] = float(cells[6])
+    if len(zscores) != 13:
+        raise ValueError(f"expected 13 bands in {report_path}, found {len(zscores)}")
+    return zscores
+
+
+def band_macros(zscores: dict[str, float]) -> dict:
+    """z-score macros for the Discussion: visible, NIR, SWIR and B10."""
+    visible = [zscores["B02"], zscores["B03"], zscores["B04"]]
+    nir = [zscores["B08"], zscores["B8A"]]
+    swir = [zscores["B11"], zscores["B12"]]
+    macros = {}
+    macros["ZVisibleMin"] = f"{min(visible):.2f}"
+    macros["ZVisibleMax"] = f"{max(visible):.2f}"
+    macros["ZNirMax"] = f"{max(nir):.2f}"
+    macros["ZSwirMin"] = f"{min(swir):.2f}"
+    macros["ZSwirMax"] = f"{max(swir):.2f}"
+    macros["ZBandTen"] = f"{zscores['B10']:.2f}"
+    return macros
+
+
+def last_block_shares() -> dict[str, float]:
+    """Share of the parameters trained in last_block mode, per model (RGB, ImageNet weights)."""
+    shares = {}
+    for name in MODEL_ORDER:
+        model = build_model(name, "rgb")
+        trained = sum(p.numel() for p in last_block_params(model, name))
+        shares[name] = trained / count_params(model)
+    return shares
+
+
+def share_macros(shares: dict[str, float]) -> dict:
+    """last_block share macros, in percent without decimals."""
+    macros = {}
+    macros["LastBlockShareResNet"] = f"{100 * shares['resnet50']:.0f}"
+    macros["LastBlockShareEffNet"] = f"{100 * shares['efficientnet_b0']:.0f}"
+    macros["LastBlockShareViT"] = f"{100 * shares['vit_small']:.0f}"
+    return macros
+
+
+def finetune_steps(config_path: Path, labels_path: Path) -> int:
+    """Optimizer steps of one fine-tuning run, counted as in hydroscope.training.finetune."""
+    cfg = load_config(config_path)
+    labels = load_labels(labels_path)
+    is_finetune = (labels["split"] == "finetune") & (labels["label"] != SKIP)
+    n_patches = int(is_finetune.sum())
+    micro_batch = cfg["optim"]["micro_batch_size"]
+    accum = cfg["optim"]["batch_size"] // micro_batch
+    micro_batches = math.ceil(n_patches / micro_batch)  # len(train_loader)
+    steps_per_epoch = math.ceil(micro_batches / accum)
+    return cfg["finetune"]["epochs"] * steps_per_epoch
+
+
+def head_loss_falling_runs(summary: pd.DataFrame, logs_dir: Path) -> int:
+    """Number of head runs whose training loss at the last epoch is below that at the middle one."""
+    count = 0
+    for run_id in summary["run_id"]:
+        log = pd.read_csv(logs_dir / f"{run_id}_ft-head.csv")
+        middle = log.loc[log["epoch"] == len(log) // 2, "train_loss"].item()
+        last = log["train_loss"].iloc[-1]
+        if last < middle:
+            count += 1
+    return count
+
+
 def write_macros(macros: dict) -> Path:
     """Write paper/tables/macros.tex, one \\newcommand per number."""
-    lines = ["% Generated by scripts/make_results.py from paper/tables/summary.csv. Do not edit."]
+    lines = [
+        "% Generated by scripts/make_results.py from paper/tables/summary.csv,",
+        "% docs/data_ags_check.md (band z-scores), the model factory (last_block shares),",
+        "% configs/base.yaml + data/ags/labels.csv (fine-tune steps) and the fine-tune logs.",
+        "% Do not edit.",
+    ]
     for name, value in macros.items():
         lines.append(f"\\newcommand{{\\{name}}}{{{value}}}")
     path = TABLES_DIR / "macros.tex"
@@ -678,7 +773,12 @@ def main() -> None:
 
     # The text macros are read back from summary.csv, the same file the tables come from.
     summary_csv = pd.read_csv(TABLES_DIR / "summary.csv")
-    written.append(write_macros(paper_macros(summary_csv, selection_all, selection_imagenet)))
+    macros = paper_macros(summary_csv, selection_all, selection_imagenet)
+    macros.update(band_macros(band_zscores(AGS_CHECK_REPORT)))
+    macros.update(share_macros(last_block_shares()))
+    macros["FineTuneSteps"] = str(finetune_steps(BASE_CONFIG, AGS_LABELS))
+    macros["HeadLossFallingRuns"] = str(head_loss_falling_runs(summary_csv, LOGS_DIR))
+    written.append(write_macros(macros))
 
     written += write_figures(results, summary, selection_all["winner"])
     print("Written files:")
