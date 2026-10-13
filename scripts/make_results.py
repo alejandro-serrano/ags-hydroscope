@@ -406,7 +406,7 @@ def plot_drop_recovery(summary: pd.DataFrame) -> Path:
         ax.grid(axis="x", alpha=0.3)
     fig.tight_layout()
     path = FIGURES_DIR / "drop_recovery.pdf"
-    fig.savefig(path)
+    fig.savefig(path, metadata={"CreationDate": None})
     plt.close(fig)
     return path
 
@@ -479,7 +479,7 @@ def plot_f1_per_class(results: dict[str, dict], summary: pd.DataFrame) -> Path:
         ax.set_title(title, fontsize=MIN_FONT + 1, loc="left")
     fig.colorbar(image, ax=axes, label="F1 per class", fraction=0.025, pad=0.02)
     path = FIGURES_DIR / "ags_f1_per_class.pdf"
-    fig.savefig(path, bbox_inches="tight")
+    fig.savefig(path, bbox_inches="tight", metadata={"CreationDate": None})
     plt.close(fig)
     return path
 
@@ -521,7 +521,7 @@ def plot_confusion_selected(results: dict[str, dict], summary: pd.DataFrame, run
     fig.suptitle(f"{label}: Aguascalientes test (color = row-normalized)", fontsize=MIN_FONT + 1)
     fig.tight_layout(rect=[0, 0, 1, 0.94])  # leave room for the suptitle
     path = FIGURES_DIR / "confusion_selected.pdf"
-    fig.savefig(path)
+    fig.savefig(path, metadata={"CreationDate": None})
     plt.close(fig)
     return path
 
@@ -552,7 +552,7 @@ def plot_convergence(
     style_axes(ax)
     fig.tight_layout()
     path = FIGURES_DIR / f"convergence_{bands}.pdf"
-    fig.savefig(path)
+    fig.savefig(path, metadata={"CreationDate": None})
     plt.close(fig)
     return path
 
