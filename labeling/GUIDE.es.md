@@ -6,8 +6,8 @@ porque son los que aparecen en el notebook y en `labels.csv`.
 
 **Cómo abrirlo:** `conda activate hydroscope && jupyter lab labeling/label.ipynb`, ejecuta todas
 las celdas, escribe tu id de anotador y presiona Start. Cada clic se guarda al instante; Start
-retoma donde te quedaste. Las etiquetas hechas con la guía v1 están archivadas en
-`data/ags/labels_v1_2026-10-09.csv`.
+retoma donde te quedaste. La revisión de v1 a v2 se describe en la Data Card
+(`docs/data_card.md`).
 
 ## Contexto: cómo se ve Aguascalientes en abril
 

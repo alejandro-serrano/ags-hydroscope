@@ -4,7 +4,7 @@ Spanish translation: [`GUIDE.es.md`](GUIDE.es.md). This English version is the r
 
 **How to open:** `conda activate hydroscope && jupyter lab labeling/label.ipynb`, run all cells,
 type your annotator id and press Start. Every click is saved immediately; Start resumes where you
-left off. Labels made with guide v1 are archived in `data/ags/labels_v1_2026-10-09.csv`.
+left off. The v1 to v2 revision is described in the Data Card (`docs/data_card.md`).
 
 ## Context: what April looks like in Aguascalientes
 

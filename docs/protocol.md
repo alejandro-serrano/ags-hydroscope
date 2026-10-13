@@ -26,6 +26,13 @@ commit.
   RGB input = B04, B03, B02 taken from the same files.
 - **Aguascalientes:** ~400 patches from April 2024. Spatial split by blocks of 8×8 grid cells
   (5.12 km): 50 % fine-tune, 50 % test, stratified by class. No block appears in both splits.
+  Method (`scripts/split_ags.py`): the unit is the block (a whole block goes to one split);
+  with `numpy.random.default_rng(0)` the block list is shuffled 20,000 times and cut half/half
+  (first half fine-tune, second half test); the partition with the smallest maximum deviation,
+  across classes, of the fraction of the class's patches in test from 0.5 is kept (min-max
+  criterion; `skip` rows are not counted and take the split of their block). Seed: 0. Outputs:
+  `split` column of `data/ags/labels.csv` and `configs/ags_block_split.csv` (block_id,split).
+  Counts per class and split: `docs/data_card.md`.
 
 ## 3. Classes
 
@@ -111,3 +118,4 @@ fine-tuning. If two models are within 1 point (≤ 0.01 macro-F1), the one with 
 | 2026-10-07 | Protocol frozen (v1.0) | — | yes |
 | 2026-10-07 | Hardware: Apple M2 Pro (MPS), fp32; effective batch 64 = 2 × 32 with gradient accumulation (BatchNorm sees 32 samples); peak memory = MPS driver memory; data cached as .npy; resize on device | Only machine available | yes |
 | 2026-10-08 | Spatial blocks of 8×8 cells (5.12 km) instead of 5×5 km, so that every cell belongs to exactly one block | Alignment with the 640 m grid | yes |
+| 2026-10-12 | Aguascalientes split method fixed: 20,000 random half/half block partitions, min-max class deviation, seed 0 | Reproducible, class-balanced spatial split | yes |
