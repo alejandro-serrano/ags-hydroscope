@@ -18,11 +18,14 @@ from hydroscope.contracts import validate_result
 from hydroscope.data.eurosat import CLASSES
 from hydroscope.data.transforms import resize_to_input
 from hydroscope.models.factory import build_model, count_params
-from hydroscope.training.loop_utils import make_eurosat_loader
+from hydroscope.training.loop_utils import make_ags_loader, make_eurosat_loader
 from hydroscope.utils.device import select_device
 
 EUROSAT_SPLITS = {"eurosat_val": "val", "eurosat_test": "test"}
 """Result split name -> EuroSAT split name."""
+
+MIN_TEST_PATCHES = 10
+"""Aguascalientes: classes with fewer test patches are left out of the macro-F1."""
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -95,9 +98,26 @@ def predict(model, loader, device: torch.device, input_size: int):
     return all_preds, all_labels, time.time() - start
 
 
-def compute_metrics(labels: list[int], preds: list[int]) -> dict:
-    """Accuracy, macro-F1, F1 per class (keyed by class name) and the 10x10 confusion matrix."""
+def classes_with_enough_patches(labels: list[int], minimum: int) -> list[int]:
+    """Class indices that appear at least ``minimum`` times in ``labels``."""
+    class_ids = []
+    for class_id in range(len(CLASSES)):
+        if labels.count(class_id) >= minimum:
+            class_ids.append(class_id)
+    return class_ids
+
+
+def compute_metrics(
+    labels: list[int], preds: list[int], macro_class_ids: list[int] | None = None
+) -> dict:
+    """Accuracy, macro-F1, F1 per class (keyed by class name) and the 10x10 confusion matrix.
+
+    ``macro_f1`` averages the classes in ``macro_class_ids`` (default: all 10).
+    ``f1_per_class`` and ``confusion`` always cover the 10 classes.
+    """
     class_ids = list(range(len(CLASSES)))
+    if macro_class_ids is None:
+        macro_class_ids = class_ids
     f1_values = f1_score(labels, preds, average=None, labels=class_ids, zero_division=0)
     f1_per_class = {}
     for name, value in zip(CLASSES, f1_values, strict=True):
@@ -106,7 +126,7 @@ def compute_metrics(labels: list[int], preds: list[int]) -> dict:
     return {
         "accuracy": float(accuracy_score(labels, preds)),
         "macro_f1": float(
-            f1_score(labels, preds, average="macro", labels=class_ids, zero_division=0)
+            f1_score(labels, preds, average="macro", labels=macro_class_ids, zero_division=0)
         ),
         "f1_per_class": f1_per_class,
         "confusion": confusion.tolist(),
@@ -119,10 +139,10 @@ def evaluate_checkpoint(ckpt_path: Path, split: str, device: torch.device | None
     The JSON goes to ``{results_dir}/{run_id}_{split}.json`` (results_dir from the run config
     stored in the checkpoint .yaml). Training fields come from that .yaml.
     """
-    if split == "ags_test":
-        raise NotImplementedError("the Aguascalientes split (ags_test) arrives in F4")
-    if split not in EUROSAT_SPLITS:
-        raise ValueError(f"unknown split {split!r}; expected one of {list(EUROSAT_SPLITS)}")
+    if split != "ags_test" and split not in EUROSAT_SPLITS:
+        raise ValueError(
+            f"unknown split {split!r}; expected one of {[*EUROSAT_SPLITS, 'ags_test']}"
+        )
     meta = read_meta(ckpt_path)
     cfg = meta["config"]
     if device is None:
@@ -130,7 +150,10 @@ def evaluate_checkpoint(ckpt_path: Path, split: str, device: torch.device | None
     model = load_checkpoint(ckpt_path, meta, device)
     mean = torch.tensor(meta["normalization"]["mean"])
     std = torch.tensor(meta["normalization"]["std"])
-    loader = make_eurosat_loader(cfg, EUROSAT_SPLITS[split], mean, std, train=False)
+    if split == "ags_test":
+        loader = make_ags_loader(cfg, "test", mean, std, train=False)
+    else:
+        loader = make_eurosat_loader(cfg, EUROSAT_SPLITS[split], mean, std, train=False)
     preds, labels, seconds = predict(model, loader, device, cfg["data"]["input_size"])
 
     record = {
@@ -140,7 +163,14 @@ def evaluate_checkpoint(ckpt_path: Path, split: str, device: torch.device | None
         "init": meta["init"],
         "split": split,
     }
-    record.update(compute_metrics(labels, preds))
+    if split == "ags_test":
+        # Classes with few test patches are left out of the macro-F1 (protocol, section 3).
+        macro_ids = classes_with_enough_patches(labels, MIN_TEST_PATCHES)
+        record.update(compute_metrics(labels, preds, macro_ids))
+        record["macro_f1_classes"] = [CLASSES[class_id] for class_id in macro_ids]
+        record["macro_f1_all_classes"] = compute_metrics(labels, preds)["macro_f1"]
+    else:
+        record.update(compute_metrics(labels, preds))
     record["params"] = count_params(model)
     record["train_time_s"] = meta["train_time_s"]  # from the checkpoint .yaml
     record["peak_mem_mb"] = meta["peak_mem_mb"]
@@ -167,7 +197,9 @@ def evaluate_checkpoint(ckpt_path: Path, split: str, device: torch.device | None
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate a checkpoint and write the result JSON")
     parser.add_argument("--ckpt", required=True, help="path to the checkpoint .pt")
-    parser.add_argument("--split", default="eurosat_test", help="eurosat_val | eurosat_test")
+    parser.add_argument(
+        "--split", default="eurosat_test", help="eurosat_val | eurosat_test | ags_test"
+    )
     args = parser.parse_args()
     evaluate_checkpoint(Path(args.ckpt), args.split)
 

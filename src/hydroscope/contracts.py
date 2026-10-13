@@ -24,6 +24,12 @@ RESULT_FIELDS = {
 }
 """Every field a result JSON must have, with the type we expect (as written in the contract)."""
 
+AGS_RESULT_FIELDS = {
+    "macro_f1_classes": "list[str]",
+    "macro_f1_all_classes": "float",
+}
+"""Extra fields required only when ``split`` is ``ags_test``."""
+
 NULLABLE_RESULT_FIELDS = ("train_time_s", "peak_mem_mb", "epochs_to_95")
 """Fields that may be ``None`` when they do not apply (e.g. peak memory on CPU)."""
 
@@ -59,6 +65,10 @@ def has_expected_type(value, expected: str) -> bool:
             if not isinstance(key, str) or not is_float(item):
                 return False
         return True
+    if expected == "list[str]":
+        if not isinstance(value, list):
+            return False
+        return all(isinstance(item, str) for item in value)
     if expected == "list[list[int]]":
         if not isinstance(value, list):
             return False
@@ -77,6 +87,7 @@ def validate_result(result: dict) -> None:
 
     Every field must be present with the expected type; fields in ``NULLABLE_RESULT_FIELDS`` may
     be ``None``. Extra fields are allowed.
+    Results of the split ``ags_test`` also need the fields in ``AGS_RESULT_FIELDS``.
 
     Raises:
         ContractError: listing every missing or mistyped field.
@@ -84,7 +95,10 @@ def validate_result(result: dict) -> None:
     if not isinstance(result, dict):
         raise ContractError(f"result must be a dict, got {type(result).__name__}")
     problems = []
-    for field, expected in RESULT_FIELDS.items():
+    required = dict(RESULT_FIELDS)
+    if result.get("split") == "ags_test":
+        required.update(AGS_RESULT_FIELDS)
+    for field, expected in required.items():
         if field not in result:
             problems.append(f"missing field '{field}'")
             continue

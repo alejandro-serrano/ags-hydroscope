@@ -11,6 +11,8 @@ from hydroscope.models.factory import (
     count_params,
     count_trainable_params,
     get_first_layer,
+    head_modules,
+    last_block_modules,
     last_block_params,
 )
 
@@ -141,3 +143,12 @@ def test_last_block_params_resnet50_are_layer4_and_fc() -> None:
 def test_count_params_matches_trainable_when_nothing_is_frozen() -> None:
     model = get_model("efficientnet_b0", "rgb", "imagenet")
     assert count_params(model) == count_trainable_params(model)
+
+
+@pytest.mark.parametrize("name", list(TIMM_NAMES))
+def test_head_is_inside_last_block_and_smaller(name: str) -> None:
+    model = get_model(name, "rgb", "imagenet")
+    head = sum(p.numel() for module in head_modules(model, name) for p in module.parameters())
+    last_block = sum(p.numel() for p in last_block_params(model, name))
+    assert 0 < head < last_block
+    assert head_modules(model, name)[-1] is last_block_modules(model, name)[-1]

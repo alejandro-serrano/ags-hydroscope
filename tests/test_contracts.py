@@ -43,3 +43,13 @@ def test_invalid_result_raises(valid_result):
         validate_result(valid_result)
     assert "macro_f1" in str(excinfo.value)
     assert "params" in str(excinfo.value)
+
+
+def test_ags_test_result_needs_the_macro_class_fields(valid_result):
+    valid_result["split"] = "ags_test"
+    with pytest.raises(ContractError) as excinfo:
+        validate_result(valid_result)
+    assert "macro_f1_classes" in str(excinfo.value)
+    valid_result["macro_f1_classes"] = ["AnnualCrop", "Forest"]
+    valid_result["macro_f1_all_classes"] = 0.4
+    assert validate_result(valid_result) is None

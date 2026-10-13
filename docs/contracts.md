@@ -51,7 +51,9 @@ Invariants: `(cell_id, annotator)` is unique; every `block_id` appears in exactl
 
 ## 3. Checkpoint
 
-- **Path:** `checkpoints/{model}_{bands}_{init}.pt` plus `checkpoints/{model}_{bands}_{init}.yaml`
+- **Path:** `checkpoints/{model}_{bands}_{init}.pt` plus `checkpoints/{model}_{bands}_{init}.yaml`.
+  Fine-tuned checkpoints: `checkpoints/{run_id}_ft-{mode}.pt` plus `.yaml` (`mode` = `head` or
+  `last_block`; the weights are those of the last fine-tuning epoch).
 - **Format:** `.pt` = PyTorch `state_dict` (`torch.save`); `.yaml` = metadata below.
 
 | `.yaml` field | Type | Description |
@@ -66,12 +68,23 @@ Invariants: `(cell_id, annotator)` is unique; every `block_id` appears in exactl
 | `train_time_s` | float | Total training time in seconds |
 | `time_per_epoch_s` | float | Mean seconds per epoch |
 | `peak_mem_mb` | float, nullable | Peak device memory in MB; `null` on CPU |
-| `epochs_to_95` | int | First epoch reaching 95 % of the best val macro-F1 |
+| `epochs_to_95` | int, nullable | First epoch reaching 95 % of the best val macro-F1; `null` for fine-tuned checkpoints |
 | `micro_batch` | int | Micro-batch size used in training |
 | `accum_steps` | int | Gradient accumulation steps used in training |
 | `git_commit` | str | Commit hash of the training code |
 | `git_dirty` | bool | `true` if `src/` or `configs/` had uncommitted changes (new files included) when training started |
 | `config` | object | Resolved run config (data paths, results dir, device), read by `evaluate` |
+
+Extra `.yaml` fields of fine-tuned checkpoints (`run_id` = `{parent_run_id}_ft-{mode}`):
+
+| `.yaml` field | Type | Description |
+| --- | --- | --- |
+| `parent_run_id` | str | `run_id` of the EuroSAT checkpoint that was fine-tuned |
+| `finetune_mode` | str | `head` · `last_block` |
+| `trainable_params` | int | Number of parameters that were trained |
+
+Their `train_time_s`, `time_per_epoch_s`, `peak_mem_mb`, `micro_batch` and `accum_steps` are those
+of the fine-tuning run; `config` is the parent config with `finetune.epochs` applied.
 
 - **Written by:** `hydroscope.training.train` (and `finetune`).
 - **Read by:** `hydroscope.training.evaluate`, `hydroscope.training.finetune`, Grad-CAM.
@@ -80,7 +93,8 @@ Invariants: `(cell_id, annotator)` is unique; every `block_id` appears in exactl
 
 - **Path:** `experiments/results/{run_id}_{split}.json`, e.g. `resnet50_rgb_imagenet_eurosat_test.json`
 - **Format:** JSON object, flat. All fields are always present; fields marked nullable are `null`
-  when they do not apply.
+  when they do not apply. `macro_f1_classes` and `macro_f1_all_classes` exist only when
+  `split` is `ags_test`.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -91,12 +105,14 @@ Invariants: `(cell_id, annotator)` is unique; every `block_id` appears in exactl
 | `split` | str | Evaluated split, e.g. `eurosat_test`, `ags_test` |
 | `accuracy` | float | Overall accuracy, 0–1 |
 | `macro_f1` | float | Macro-F1, 0–1 (on Aguascalientes, excludes classes with < 10 test patches) |
+| `macro_f1_classes` | list[str] | `ags_test` only: names of the classes averaged in `macro_f1` |
+| `macro_f1_all_classes` | float | `ags_test` only: macro-F1 over all 10 classes |
 | `f1_per_class` | dict[str, float] | F1 for every class, keyed by class name |
 | `confusion` | list[list[int]] | Confusion matrix; rows = true, cols = predicted, class index order |
 | `params` | int | Total number of parameters |
 | `train_time_s` | float, nullable | Total training time in seconds; `null` for evaluation-only runs |
 | `peak_mem_mb` | float, nullable | Peak device memory in MB: MPS driver memory (maximum sampled at each step), CUDA `max_memory_allocated`; `null` on CPU |
-| `epochs_to_95` | int, nullable | First epoch reaching 95 % of the best val macro-F1; `null` for evaluation-only runs |
+| `epochs_to_95` | int, nullable | First epoch reaching 95 % of the best val macro-F1; `null` for evaluation-only runs and fine-tuned results |
 | `patches_per_s` | float | Inference throughput on the evaluated split |
 | `device` | str | `cuda` · `mps` · `cpu`; device the run executed on |
 | `micro_batch` | int | Micro-batch size per forward/backward pass |
@@ -109,7 +125,8 @@ Validated by `hydroscope.contracts.validate_result`.
 
 The training fields (`train_time_s`, `peak_mem_mb`, `epochs_to_95`, `micro_batch`, `accum_steps`)
 are copied from the checkpoint `.yaml`, so evaluation-only runs (e.g. `ags_test`) carry the
-training statistics of the checkpoint they evaluate. `patches_per_s`, `git_commit` and `git_dirty`
+training statistics of the checkpoint they evaluate. For fine-tuned checkpoints (result `run_id`
+`{run_id}_ft-{mode}_ags_test`) these are the fine-tuning statistics. `patches_per_s`, `git_commit` and `git_dirty`
 are those of the evaluation itself. `train` and `evaluate` print a warning when `git_dirty` is
 true but do not stop.
 

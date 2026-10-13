@@ -157,22 +157,39 @@ def count_trainable_params(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def last_block_params(model: nn.Module, name: str) -> list[nn.Parameter]:
-    """Parameters trained in fine-tuning mode ``last_block`` (last block plus head).
+def head_modules(model: nn.Module, name: str) -> list[nn.Module]:
+    """Modules trained in fine-tuning mode ``head``: only the classification layer.
+
+    - resnet50: ``fc``. efficientnet_b0: ``classifier``. vit_small: ``head``.
+    """
+    if name == "resnet50":
+        return [model.fc]
+    if name == "efficientnet_b0":
+        return [model.classifier]
+    if name == "vit_small":
+        return [model.head]
+    raise ValueError(f"unknown model {name!r}; expected one of {list(TIMM_NAMES)}")
+
+
+def last_block_modules(model: nn.Module, name: str) -> list[nn.Module]:
+    """Modules trained in fine-tuning mode ``last_block`` (last block plus head).
 
     - resnet50: ``layer4`` (the last stage, 3 bottlenecks) and ``fc``.
     - efficientnet_b0: the last stage ``blocks[-1]``, ``conv_head``, ``bn2`` and ``classifier``.
     - vit_small: the last transformer block ``blocks[-1]``, the final ``norm`` and ``head``.
     """
     if name == "resnet50":
-        modules = [model.layer4, model.fc]
-    elif name == "efficientnet_b0":
-        modules = [model.blocks[-1], model.conv_head, model.bn2, model.classifier]
-    elif name == "vit_small":
-        modules = [model.blocks[-1], model.norm, model.head]
-    else:
-        raise ValueError(f"unknown model {name!r}; expected one of {list(TIMM_NAMES)}")
+        return [model.layer4, model.fc]
+    if name == "efficientnet_b0":
+        return [model.blocks[-1], model.conv_head, model.bn2, model.classifier]
+    if name == "vit_small":
+        return [model.blocks[-1], model.norm, model.head]
+    raise ValueError(f"unknown model {name!r}; expected one of {list(TIMM_NAMES)}")
+
+
+def last_block_params(model: nn.Module, name: str) -> list[nn.Parameter]:
+    """Parameters trained in fine-tuning mode ``last_block`` (see ``last_block_modules``)."""
     params = []
-    for module in modules:
+    for module in last_block_modules(model, name):
         params += list(module.parameters())
     return params

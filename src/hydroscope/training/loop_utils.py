@@ -1,11 +1,13 @@
 """Building blocks shared by every training run: accumulation, resizing, loading, CLI."""
 
 import argparse
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, Subset
 
+from hydroscope.data.ags import LABELS_CSV, PATCHES_DIR, AguascalientesDataset
 from hydroscope.data.eurosat import EuroSATDataset
 from hydroscope.data.transforms import augment, normalize
 
@@ -136,4 +138,29 @@ def make_eurosat_loader(cfg: dict, split: str, mean, std, train: bool) -> DataLo
         num_workers=data_cfg["num_workers"],
         seed=cfg["seed"],
         worker_init_fn=seed_worker,
+    )
+
+
+def make_ags_loader(
+    cfg: dict,
+    split: str,
+    mean,
+    std,
+    train: bool,
+    labels_csv: Path = LABELS_CSV,
+    patches_dir: Path = PATCHES_DIR,
+) -> DataLoader:
+    """DataLoader of one Aguascalientes split (``finetune`` or ``test``).
+
+    ``train=True`` shuffles and augments. No worker processes: the whole split is in memory.
+    """
+    dataset = AguascalientesDataset(
+        split, cfg["bands"], mean, std, train, labels_csv, patches_dir, cfg["seed"]
+    )
+    return make_dataloader(
+        dataset,
+        cfg["optim"]["micro_batch_size"],
+        shuffle=train,
+        num_workers=0,
+        seed=cfg["seed"],
     )

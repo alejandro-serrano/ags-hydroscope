@@ -24,8 +24,9 @@ commit.
 - **EuroSAT:** EuroSAT MS from TorchGeo with its official train/val/test split. Band order is
   TorchGeo's: B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12, B8A (B8A last).
   RGB input = B04, B03, B02 taken from the same files.
-- **Aguascalientes:** ~400 patches from April 2024. Spatial split by blocks of 8×8 grid cells
-  (5.12 km): 50 % fine-tune, 50 % test, stratified by class. No block appears in both splits.
+- **Aguascalientes:** 1,102 labeled patches from April 2024 (1,270 cells reviewed, 168
+  skipped). Spatial split by blocks of 8×8 grid cells (5.12 km): 50 % fine-tune, 50 % test,
+  stratified by class. No block appears in both splits.
   Method (`scripts/split_ags.py`): the unit is the block (a whole block goes to one split);
   with `numpy.random.default_rng(0)` the block list is shuffled 20,000 times and cut half/half
   (first half fine-tune, second half test); the partition with the smallest maximum deviation,
@@ -101,8 +102,21 @@ reported separately.
 | E3 | Zero-shot evaluation of the 8 checkpoints on Aguascalientes | 8 evaluations |
 | E4 | Fine-tuning of the 8 checkpoints, modes `head` and `last_block`, 10 fixed epochs | 16 |
 
-- `head`: backbone frozen, classification head trained.
-- `last_block`: last stage/block and head trained.
+- `head`: backbone frozen, classification head trained. Head modules: ResNet-50 `fc`,
+  EfficientNet-B0 `classifier`, ViT-S/16 `head`.
+- `last_block`: last stage/block and head trained (modules listed in section 4).
+- Frozen parts run in eval mode while fine-tuning: BatchNorm keeps its EuroSAT statistics and
+  dropout is off. Only the trainable modules are in train mode.
+- Fixed 10 epochs; the weights of the last epoch are the result. There is no validation set, no
+  early stopping and no model selection; the `test` split is never seen during fine-tuning.
+- Loss: cross-entropy with class weights `n / (K * n_c)` (`n` patches, `K = 10` classes, `n_c`
+  patches of class `c`), computed on the fine-tune split only.
+- Same AdamW (lr 1e-4, weight decay 0.05), batch 64 (2 x 32), augmentation and seed as in
+  section 5; schedule: 1 warmup epoch + cosine over the 10 fine-tuning epochs.
+- Aguascalientes macro-F1 averages the classes with at least 10 test patches (today River, with 7,
+  is excluded). The result also reports `macro_f1_classes` (the classes used) and
+  `macro_f1_all_classes` (macro-F1 over the 10 classes).
+- `epochs_to_95` is `null` for fine-tuned results (no validation curve).
 
 ## 7. Metrics
 
@@ -128,3 +142,5 @@ fine-tuning. If two models are within 1 point (≤ 0.01 macro-F1), the one with 
 | 2026-10-07 | Hardware: Apple M2 Pro (MPS), fp32; effective batch 64 = 2 × 32 with gradient accumulation (BatchNorm sees 32 samples); peak memory = MPS driver memory; data cached as .npy; resize on device | Only machine available | yes |
 | 2026-10-08 | Spatial blocks of 8×8 cells (5.12 km) instead of 5×5 km, so that every cell belongs to exactly one block | Alignment with the 640 m grid | yes |
 | 2026-10-12 | Aguascalientes split method fixed: 20,000 random half/half block partitions, min-max class deviation, seed 0 | Reproducible, class-balanced spatial split | yes |
+| 2026-10-13 | Fine-tuning details (E4) written down: head modules per architecture; frozen parts in eval mode; fixed 10 epochs, last epoch used, no validation, test never seen; class weights `n/(K·n_c)` from the fine-tune split; same AdamW/lr/wd/batch/augmentation/seed with 1 warmup epoch + cosine over 10 epochs | Clarification before running E4 (protocol version stays 1.0) | yes |
+| 2026-10-13 | Aguascalientes macro-F1 class set fixed: classes with at least 10 test patches (River excluded today); `macro_f1_all_classes` also reported; `epochs_to_95 = null` for fine-tuning | Clarification of section 3 before running E3/E4 (protocol version stays 1.0) | yes |

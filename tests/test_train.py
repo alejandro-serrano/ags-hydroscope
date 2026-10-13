@@ -12,7 +12,7 @@ from hydroscope.config import load_config
 from hydroscope.contracts import validate_result
 from hydroscope.data.eurosat import EuroSATDataset
 from hydroscope.data.transforms import select_rgb
-from hydroscope.training.evaluate import compute_metrics
+from hydroscope.training.evaluate import classes_with_enough_patches, compute_metrics
 from hydroscope.training.train import lr_at_step, run_epoch, run_training
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,6 +71,43 @@ def test_accumulating_2_micro_batches_of_32_equals_one_batch_of_64():
     assert torch.allclose(weights_accumulated, weights_big_batch, atol=1e-6)
 
 
+def test_run_epoch_keeps_frozen_batchnorm_statistics_with_trainable_modules():
+    torch.manual_seed(0)
+    model = nn.Sequential(
+        nn.Conv2d(3, 4, 3), nn.BatchNorm2d(4), nn.Flatten(), nn.Linear(4 * 6 * 6, 10)
+    )
+    for param in model.parameters():
+        param.requires_grad = False
+    for param in model[3].parameters():
+        param.requires_grad = True
+    x, y = torch.randn(8, 3, 8, 8), torch.randint(0, 10, (8,))
+    loader = DataLoader(TensorDataset(x, y), batch_size=8)
+    optimizer = torch.optim.SGD(model[3].parameters(), lr=0.1)
+    state = {
+        "step": 0,
+        "total_steps": 10,
+        "warmup_steps": 1,
+        "base_lr": 0.1,
+        "max_steps": None,
+        "stop": False,
+        "tracker": FakeTracker(),
+    }
+    running_mean_before = model[1].running_mean.clone()
+    run_epoch(
+        model,
+        loader,
+        nn.CrossEntropyLoss(),
+        torch.device("cpu"),
+        8,
+        optimizer,
+        1,
+        state,
+        [model[3]],
+    )
+    assert torch.equal(model[1].running_mean, running_mean_before)
+    assert not model[1].training and model[3].training
+
+
 def test_compute_metrics_on_a_toy_example():
     labels = [0, 0, 1, 1, 2, 2]
     preds = [0, 1, 1, 1, 2, 0]
@@ -83,6 +120,25 @@ def test_compute_metrics_on_a_toy_example():
     assert len(metrics["confusion"]) == 10 and len(metrics["confusion"][0]) == 10
     assert metrics["confusion"][0][1] == 1  # one true AnnualCrop predicted as Forest
     assert metrics["macro_f1"] == pytest.approx((0.5 + 0.8 + 2 / 3) / 10)
+
+
+def test_ags_macro_f1_excludes_classes_with_fewer_than_10_test_patches():
+    labels = [0] * 10 + [1] * 10 + [8] * 3  # River (8) has only 3 patches
+    preds = [0] * 10 + [1] * 10 + [0] * 3  # and the model gets all of them wrong
+    class_ids = classes_with_enough_patches(labels, 10)
+    assert class_ids == [0, 1]
+    metrics = compute_metrics(labels, preds, class_ids)
+    assert metrics["macro_f1"] == pytest.approx((f1_of_class_0(labels, preds) + 1.0) / 2)
+    assert len(metrics["f1_per_class"]) == 10
+    assert len(metrics["confusion"]) == 10 and len(metrics["confusion"][0]) == 10
+    all_classes = compute_metrics(labels, preds)["macro_f1"]
+    assert all_classes == pytest.approx((f1_of_class_0(labels, preds) + 1.0) / 10)
+
+
+def f1_of_class_0(labels, preds):
+    # 10 true positives, 3 false positives (the River patches), 0 false negatives.
+    precision, recall = 10 / 13, 1.0
+    return 2 * precision * recall / (precision + recall)
 
 
 @pytest.mark.skipif(not HAS_CACHE, reason="EuroSAT .npy cache not found")

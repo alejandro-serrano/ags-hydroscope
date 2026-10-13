@@ -57,16 +57,31 @@ def lr_at_step(step: int, total_steps: int, warmup_steps: int, base_lr: float) -
 
 
 def run_epoch(
-    model, loader, criterion, device, input_size, optimizer=None, accum_steps=1, state=None
+    model,
+    loader,
+    criterion,
+    device,
+    input_size,
+    optimizer=None,
+    accum_steps=1,
+    state=None,
+    trainable_modules=None,
 ):
     """One pass over the data. Trains if an optimizer is given, otherwise only evaluates.
 
     ``state`` is a dict with the schedule and the memory tracker; it counts optimizer steps
     across epochs (keys: step, total_steps, warmup_steps, base_lr, max_steps, stop, tracker).
-    Returns the mean loss per sample, the predictions and the labels.
+    ``trainable_modules`` (fine-tuning only) is the list of modules that learn; the rest of the
+    model stays in eval mode. Returns the mean loss per sample, the predictions and the labels.
     """
     training = optimizer is not None
     model.train() if training else model.eval()
+    if training and trainable_modules is not None:
+        # Frozen BatchNorm layers keep their EuroSAT statistics (and dropout stays off) when the
+        # whole model is in eval mode; only the trainable modules go back to train mode.
+        model.eval()
+        for module in trainable_modules:
+            module.train()
     total_loss, all_preds, all_labels = 0.0, [], []
     if training:
         optimizer.zero_grad()
