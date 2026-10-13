@@ -66,6 +66,15 @@ reported separately.
   initialize every other channel with their mean.
 - **SSL variant (priority: Should), 13 bands only:** TorchGeo
   `ResNet50_Weights.SENTINEL2_ALL_MOCO` and `ViTSmall16_Weights.SENTINEL2_ALL_DINO`.
+  The SSL4EO-S12 weights use the band order B01…B08, B8A, B09…B12 (B8A after B08), so the factory
+  permutes the input channels of their first layer to EuroSAT order (B8A last); the data pipeline
+  keeps EuroSAT order for every model. Normalization for these weights is TorchGeo's `x / 10000`.
+- **Last block** (fine-tuning mode `last_block`, section 6): ResNet-50 `layer4` + `fc`;
+  EfficientNet-B0 `blocks[-1]` + `conv_head` + `bn2` + `classifier`; ViT-S/16 `blocks[-1]` +
+  `norm` + `head`. Implemented by `last_block_params` in `src/hydroscope/models/factory.py`.
+  Note: the share of parameters trained in `last_block` mode differs by architecture (ResNet-50
+  ≈64 %, EfficientNet-B0 ≈28 %, ViT-S/16 ≈8 % of total, from `count_params`); this asymmetry is
+  inherent to the architectures, is kept as is, and is discussed in the paper.
 
 ## 5. Shared training configuration
 
