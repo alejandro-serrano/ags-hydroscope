@@ -1,0 +1,7 @@
+# efficientnet_b0, rgb bands, ImageNet initialization.
+extends: base.yaml
+
+run_id: efficientnet_b0_rgb_imagenet
+model: efficientnet_b0
+bands: rgb
+init: imagenet

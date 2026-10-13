@@ -1,0 +1,7 @@
+# vit_small, ms13 bands, ImageNet initialization.
+extends: base.yaml
+
+run_id: vit_small_ms13_imagenet
+model: vit_small
+bands: ms13
+init: imagenet

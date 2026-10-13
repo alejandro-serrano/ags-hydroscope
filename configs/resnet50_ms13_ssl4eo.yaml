@@ -1,0 +1,7 @@
+# resnet50, 13 bands, SSL4EO-S12 self-supervised initialization.
+extends: base.yaml
+
+run_id: resnet50_ms13_ssl4eo
+model: resnet50
+bands: ms13
+init: ssl4eo

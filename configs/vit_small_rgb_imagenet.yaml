@@ -1,0 +1,7 @@
+# vit_small, rgb bands, ImageNet initialization.
+extends: base.yaml
+
+run_id: vit_small_rgb_imagenet
+model: vit_small
+bands: rgb
+init: imagenet

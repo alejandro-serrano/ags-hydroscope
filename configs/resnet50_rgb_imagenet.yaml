@@ -1,0 +1,7 @@
+# resnet50, rgb bands, ImageNet initialization.
+extends: base.yaml
+
+run_id: resnet50_rgb_imagenet
+model: resnet50
+bands: rgb
+init: imagenet

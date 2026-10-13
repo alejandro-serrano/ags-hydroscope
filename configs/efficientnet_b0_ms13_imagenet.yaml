@@ -1,0 +1,7 @@
+# efficientnet_b0, ms13 bands, ImageNet initialization.
+extends: base.yaml
+
+run_id: efficientnet_b0_ms13_imagenet
+model: efficientnet_b0
+bands: ms13
+init: imagenet
