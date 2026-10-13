@@ -1,0 +1,22 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{Configuration shared by every run, from the base configuration file. Only the architecture, the input bands and the initial weights change between runs.}
+\label{tab:config}
+\begin{tabular}{@{}lp{0.68\columnwidth}@{}}
+\toprule
+Setting & Value \\
+\midrule
+Input & 64$\times$64 resized to 224$\times$224 (bilinear) \\
+Normalization & ImageNet: per-band mean and std of EuroSAT train; SSL4EO-S12: $x/\num{10000}$ (TorchGeo) \\
+Augmentation & horizontal flip, vertical flip, 90$^\circ$ rotations \\
+Optimizer & AdamW, lr \num{1e-04}, weight decay 0.05 \\
+Schedule & 1 warmup epoch + cosine \\
+Batch size & 64 (2$\times$32, accumulation) \\
+Epochs (EuroSAT) & max 15, patience 3 on val macro-F1 \\
+Loss & EuroSAT: cross-entropy; Aguascalientes: class-weighted cross-entropy \\
+Fine-tuning & modes \texttt{head}, \texttt{last\_block}; 10 fixed epochs, last epoch kept \\
+Seed & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}

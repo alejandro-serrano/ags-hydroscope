@@ -37,6 +37,25 @@ The following mechanical normalizations were then applied with `sed` (no other f
 - Proper nouns in titles braced (`{EuroSAT}`, `{SSL4EO-S12}`, `{Earth}`) because IEEEtran.bst
   lowercases titles.
 
+### Method references (F6)
+
+```bash
+for d in 10.1109/CVPR.2016.90 10.1109/ICCV.2017.74 \
+         10.48550/arXiv.1905.11946 10.48550/arXiv.2010.11929; do
+  curl -sLH "Accept: application/x-bibtex" "https://doi.org/$d"
+done
+```
+
+The two arXiv DOIs return DataCite records. Same mechanical normalizations as above, plus one:
+
+- Keys renamed: `He_2016` → `he2016resnet`, `Selvaraju_2017` → `selvaraju2017`,
+  `https://doi.org/10.48550/arxiv.1905.11946` → `tan2019efficientnet`,
+  `https://doi.org/10.48550/arxiv.2010.11929` → `dosovitskiy2020vit`.
+- Months `June` → `jun`, `Oct` → `oct`; en dash in `pages` → `--`.
+- Titles braced: `{Grad-CAM}`, `{EfficientNet}`.
+- Entry type of `tan2019efficientnet` changed from `@article` to `@misc`: the DataCite record has
+  no journal, so `@article` makes BibTeX warn; `@misc` is the type DataCite gives the ViT preprint.
+
 ## Known metadata issues (not fixed)
 
 The DOI metadata splits some Arabic surnames, so IEEEtran renders them as "M. M. A. Rahhal",

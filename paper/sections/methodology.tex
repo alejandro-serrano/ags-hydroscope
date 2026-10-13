@@ -1,3 +1,114 @@
 \section{Methodology}\label{sec:methodology}
 
-\todo{Models and initialization, 13-band first-conv adaptation, shared training configuration, experiment matrix E1--E4, metrics, Drop and Recovery, selection rule (docs/protocol.md, sections 4--8). Target length: 1 page.}
+We trained three pre-trained models on EuroSAT under one shared protocol, tested them on
+Aguascalientes without local training, and then fine-tuned them on the Aguascalientes fine-tune
+split. This section describes the models, the protocol, the experiments and the metrics.
+
+\subsection{Models and initialization}
+
+We compared ResNet-50~\cite{he2016resnet}, a classic residual CNN and a common baseline;
+EfficientNet-B0~\cite{tan2019efficientnet}, a light and efficient CNN; and
+ViT-S/16~\cite{dosovitskiy2020vit}, a Vision Transformer that splits the image into
+16$\times$16-pixel patches and relates them with self-attention. This gives two CNN families
+and one transformer that can all be trained on one desktop machine with the same settings. We
+chose the small ViT because its size is close to that of ResNet-50: with RGB input it has
+21.7~M parameters against 23.5~M, while EfficientNet-B0 has 4.0~M (Table~\ref{tab:cost}). A
+CNN versus ViT gap is therefore not just a gap in model size.
+
+All three models started from ImageNet weights (timm). For ResNet-50 and ViT-S/16 we also used
+SSL4EO-S12 weights~\cite{wang2023ssl4eo}, learned without labels on Sentinel-2 images: MoCo for
+ResNet-50 and DINO for ViT-S/16. These weights exist only for the 13 L1C bands, and they expect
+TorchGeo's normalization, $x/\num{10000}$. EfficientNet-B0 has no SSL4EO-S12 weights, so it has only
+ImageNet runs. The SSL4EO-S12 band order puts B8A right after B08, while our data keep B8A
+last. We therefore permuted the input channels of the first layer to EuroSAT order; without
+this step, B8A and B09 to B12 would each enter through a filter learned for a different band.
+
+ImageNet models expect three input channels, so the 13-band runs needed a new first layer (the
+first convolution, or the patch embedding of the ViT). We copied the pre-trained RGB filters to
+B04, B03 and B02 and set every other channel to the mean of the three. In this way, the RGB
+filters stay exactly as pre-trained, and the new channels start from a neutral filter instead
+of random noise that would disturb the pre-trained features in the first epochs.
+
+\subsection{Shared training protocol}
+
+The three models share everything except the architecture, as Table~\ref{tab:config} shows. We
+never changed a hyperparameter for one model only, so that differences come from the
+architecture and not from tuning. For example, if only the ViT had received a tuned learning
+rate, a ViT advantage could be the result of that tuning. Patches were resized from 64 to
+224~pixels because this is the input size of the pre-trained weights. ImageNet runs used the
+per-band mean and standard deviation of EuroSAT train, also on Aguascalientes, so that no
+statistic of the test region enters the pipeline. Every run used seed 0 and was trained once,
+so we have no variance estimate across seeds.
+
+\input{tables/config}
+
+We ran every experiment on the same Mac mini with an Apple M2 Pro, using the PyTorch MPS
+backend in fp32. Because of memory, the effective batch of 64 was built from two micro-batches
+of 32 with gradient accumulation; BatchNorm therefore saw 32 samples at a time.
+
+\subsection{Experiments}
+
+The study has four experiments. In E1 we trained the three models on EuroSAT with ImageNet
+weights, each with RGB and with 13 bands (6 runs). In E2 we trained ResNet-50 and ViT-S/16 with
+SSL4EO-S12 weights and 13 bands (2 runs). In E3 we evaluated the 8 resulting checkpoints on the
+Aguascalientes test split without any local training, that is, zero-shot. In E4 we fine-tuned
+the 8 checkpoints on the fine-tune split in two modes (16 runs). Because SSL4EO-S12 runs also
+use a different normalization, a gap between SSL4EO-S12 and ImageNet runs cannot be credited to
+the weights alone.
+
+The two fine-tuning modes differ in how much of the network they train. In \texttt{head} mode,
+the backbone was frozen and only the classifier was trained. In \texttt{last\_block} mode, the
+last stage or block was trained together with the classifier. Frozen parts ran in evaluation
+mode, so BatchNorm kept its EuroSAT statistics and dropout was off. To keep rare classes from
+being ignored, the cross-entropy loss used the class weights
+\begin{equation}
+  w_c = \frac{n}{K\, n_c},
+  \label{eq:class_weights}
+\end{equation}
+where $n$ is the number of fine-tune patches, $K$ is the number of classes and $n_c$ is the
+number of fine-tune patches of class $c$. The weights came from the fine-tune split only.
+Fine-tuning ran for a fixed 10 epochs and we kept the last epoch. We chose fixed epochs
+because there is no validation split in Aguascalientes: early stopping on the test split would
+leak test information into the model. One confound remains: \texttt{last\_block} trains a
+different share of the parameters of each architecture, so a CNN versus ViT gap after
+\texttt{last\_block} cannot be credited to the architecture alone.
+
+\subsection{Metrics}
+
+Our main metric is macro-F1, the average of the per-class F1 scores. With it, a rare class
+counts as much as a common one; with accuracy, a model could score well on Aguascalientes by
+predicting HerbaceousVegetation for most patches. The Aguascalientes macro-F1 averages the 9
+classes with at least 10 test patches, so River is reported separately. We also report the
+macro-F1 over all 10 classes and the accuracy. For cost, we recorded parameters, training time,
+peak memory, inference throughput (patches/s) and the epochs needed to reach 95\,\% of the best
+validation macro-F1.
+
+To measure the domain shift, we defined the drop and the recovery as
+\begin{align}
+  \mathrm{Drop} &= \mathrm{F1}_{\mathrm{EuroSAT}} - \mathrm{F1}_{\mathrm{Ags}}^{\text{zero-shot}},
+  \label{eq:drop}\\
+  \mathrm{Recovery} &= \frac{\mathrm{F1}_{\mathrm{Ags}}^{\text{fine-tuned}}
+    - \mathrm{F1}_{\mathrm{Ags}}^{\text{zero-shot}}}{\mathrm{Drop}},
+  \label{eq:recovery}
+\end{align}
+where $\mathrm{F1}_{\mathrm{EuroSAT}}$ is the macro-F1 over the same 9 classes, computed from
+the per-class F1 on the EuroSAT test set. In other words, the drop is what a model loses when
+it moves to Aguascalientes, and the recovery is the fraction of that loss that fine-tuning wins
+back. Recovery is undefined when $\mathrm{Drop} \le 0$.
+
+We fixed the selection rule before seeing any result. The selected model is the one with the
+highest Aguascalientes macro-F1 after \texttt{last\_block} fine-tuning. If two models are within
+0.01 macro-F1, the one with the higher patches/s on the EuroSAT test set wins. Freezing the
+rule first prevents choosing the criterion that favors a preferred model after the fact.
+
+\subsection{Grad-CAM}
+
+To see which parts of a patch drive a prediction, we used Grad-CAM~\cite{selvaraju2017}. We
+computed it for the predicted class on the 224$\times$224 input, resized the map to the
+64$\times$64 patch and scaled it to $[0, 1]$. The target layer was the last block of
+\texttt{layer4} for ResNet-50 and \texttt{conv\_head} for EfficientNet-B0, the last
+convolutional features of each CNN. For ViT-S/16 we used the first LayerNorm (\texttt{norm1})
+of the last block. There, we dropped the CLS token and reshaped the 196 patch tokens into a
+14$\times$14 map, so the gradients have a spatial layout. We chose this layer because it is the
+last point where the patch tokens still affect the prediction: after the last attention layer,
+only the CLS token reaches the classifier, so the gradients on the patch tokens would be zero.
