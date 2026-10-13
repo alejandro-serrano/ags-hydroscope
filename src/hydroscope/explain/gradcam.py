@@ -98,7 +98,7 @@ def rgb_limits(patches: np.ndarray) -> np.ndarray:
 
 
 def to_rgb_image(raw: np.ndarray, limits: np.ndarray) -> np.ndarray:
-    """Raw patch (13, 64, 64) -> RGB image (64, 64, 3) in [0, 1] with the shared stretch."""
+    """Raw patch (13, 64, 64) -> RGB image (64, 64, 3) in [0, 1] with the given stretch."""
     rgb = select_rgb(torch.from_numpy(raw.astype(np.float32))).numpy()  # (3, 64, 64)
     image = np.zeros((64, 64, 3), dtype=np.float32)
     for band in range(3):

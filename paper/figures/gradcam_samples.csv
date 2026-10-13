@@ -1,19 +1,19 @@
-figure,dataset,index,cell_id,true_label
-gradcam_eurosat,eurosat_test,394,,AnnualCrop
-gradcam_eurosat,eurosat_test,1026,,Forest
-gradcam_eurosat,eurosat_test,1245,,HerbaceousVegetation
-gradcam_eurosat,eurosat_test,2405,,Industrial
-gradcam_eurosat,eurosat_test,4231,,Residential
-gradcam_eurosat,eurosat_test,5288,,SeaLake
-gradcam_ags,ags_test,261,r0083_c0148,AnnualCrop
-gradcam_ags,ags_test,276,r0136_c0101,Forest
-gradcam_ags,ags_test,22,r0081_c0159,HerbaceousVegetation
-gradcam_ags,ags_test,155,r0128_c0115,Industrial
-gradcam_ags,ags_test,455,r0087_c0090,Residential
-gradcam_ags,ags_test,234,r0104_c0037,SeaLake
-gradcam_selected,ags_test,261,r0083_c0148,AnnualCrop
-gradcam_selected,ags_test,276,r0136_c0101,Forest
-gradcam_selected,ags_test,361,r0106_c0112,HerbaceousVegetation
-gradcam_selected,ags_test,497,r0091_c0039,HerbaceousVegetation
-gradcam_selected,ags_test,25,r0123_c0096,Industrial
-gradcam_selected,ags_test,218,r0106_c0092,Residential
+figure,dataset,index,cell_id,true_label,selection_rule
+gradcam_eurosat,eurosat_test,394,,AnnualCrop,"seed 0, one random test patch per class"
+gradcam_eurosat,eurosat_test,1026,,Forest,"seed 0, one random test patch per class"
+gradcam_eurosat,eurosat_test,1245,,HerbaceousVegetation,"seed 0, one random test patch per class"
+gradcam_eurosat,eurosat_test,2405,,Industrial,"seed 0, one random test patch per class"
+gradcam_eurosat,eurosat_test,4231,,Residential,"seed 0, one random test patch per class"
+gradcam_eurosat,eurosat_test,5288,,SeaLake,"seed 0, one random test patch per class"
+gradcam_ags,ags_test,261,r0083_c0148,AnnualCrop,"seed 0, one random test patch per class"
+gradcam_ags,ags_test,276,r0136_c0101,Forest,"seed 0, one random test patch per class"
+gradcam_ags,ags_test,22,r0081_c0159,HerbaceousVegetation,"seed 0, one random test patch per class"
+gradcam_ags,ags_test,155,r0128_c0115,Industrial,"seed 0, one random test patch per class"
+gradcam_ags,ags_test,455,r0087_c0090,Residential,"seed 0, one random test patch per class"
+gradcam_ags,ags_test,234,r0104_c0037,SeaLake,"seed 0, one random test patch per class"
+gradcam_selected,ags_test,261,r0083_c0148,AnnualCrop,same patch as gradcam_ags
+gradcam_selected,ags_test,276,r0136_c0101,Forest,same patch as gradcam_ags
+gradcam_selected,ags_test,361,r0106_c0112,HerbaceousVegetation,"seed 0, random HerbaceousVegetation test patch predicted Forest by last_block"
+gradcam_selected,ags_test,497,r0091_c0039,HerbaceousVegetation,"seed 0, random HerbaceousVegetation test patch predicted Forest by last_block"
+gradcam_selected,ags_test,155,r0128_c0115,Industrial,same patch as gradcam_ags
+gradcam_selected,ags_test,455,r0087_c0090,Residential,same patch as gradcam_ags

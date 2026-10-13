@@ -2,8 +2,18 @@
 
 Run: python scripts/make_gradcam.py
 Outputs in paper/figures/: gradcam_eurosat.pdf, gradcam_ags.pdf, gradcam_selected.pdf and
-gradcam_samples.csv (which patches are shown). Patches are picked at random with seed 0.
+gradcam_samples.csv (which patches are shown, and the rule that chose each one).
 The figures contain no numbers: only the predicted class and whether it is correct.
+
+Selection rules (seed 0):
+- gradcam_eurosat: one random EuroSAT test patch per class of SIX_CLASSES.
+- gradcam_ags: one random Aguascalientes test patch per class of SIX_CLASSES.
+- gradcam_selected: the same patches as gradcam_ags, except that the HerbaceousVegetation and
+  SeaLake patches are replaced by 2 random HerbaceousVegetation test patches that the
+  last_block model predicts as Forest (both placed in the HerbaceousVegetation row).
+
+RGB stretch: 2-98 % per band, computed once per dataset. One stretch from the EuroSAT patches
+shown, another from all the Aguascalientes patches shown (gradcam_ags and gradcam_selected).
 """
 
 import json
@@ -54,7 +64,10 @@ SIX_CLASSES = [
 RGB_CKPTS = ["resnet50_rgb_imagenet", "efficientnet_b0_rgb_imagenet", "vit_small_rgb_imagenet"]
 SSL4EO_ZERO_SHOT = "resnet50_ms13_ssl4eo"
 SSL4EO_LAST_BLOCK = "resnet50_ms13_ssl4eo_ft-last_block"
-SELECTED_CLASSES = ["AnnualCrop", "Forest", "Industrial", "Residential"]
+
+RULE_ONE_PER_CLASS = "seed 0, one random test patch per class"
+RULE_SAME_AS_AGS = "same patch as gradcam_ags"
+RULE_HV_TO_FOREST = "seed 0, random HerbaceousVegetation test patch predicted Forest by last_block"
 
 
 def load_model(run_id: str) -> tuple[torch.nn.Module, dict, str, torch.Tensor, torch.Tensor]:
@@ -121,6 +134,23 @@ def pick_herbaceous_to_forest(ags_test: AguascalientesDataset) -> list[int]:
     return random.sample(wrong, 2)
 
 
+def selected_patches(ags_ids: list[int], hv_wrong_ids: list[int]) -> list[tuple[int, str]]:
+    """Rows of gradcam_selected as (index, selection rule).
+
+    The gradcam_ags patches (one per class of SIX_CLASSES, same order) are reused; the
+    HerbaceousVegetation patch is replaced by the 2 HerbaceousVegetation->Forest cases and the
+    SeaLake patch is dropped, so the figure keeps 6 rows.
+    """
+    rows = []
+    for class_name, i in zip(SIX_CLASSES, ags_ids, strict=True):
+        if class_name == "HerbaceousVegetation":
+            for j in hv_wrong_ids:
+                rows.append((j, RULE_HV_TO_FOREST))
+        elif class_name != "SeaLake":
+            rows.append((i, RULE_SAME_AS_AGS))
+    return rows
+
+
 def draw_figure(
     path: Path, rows: list[dict], columns: list[tuple[str, str]], limits: np.ndarray
 ) -> None:
@@ -168,13 +198,11 @@ def main() -> None:
     eurosat_labels = [int(eurosat_test[i]["label"]) for i in range(len(eurosat_test))]
     ags_test = AguascalientesDataset("test", "ms13", torch.zeros(13), torch.ones(13), train=False)
 
-    # 1. Choose the patches of the three figures (seed 0).
+    # 1. Choose the patches of the three figures (seed 0, rules in the module docstring).
     eurosat_ids = pick_one_per_class(eurosat_labels, SIX_CLASSES)
     ags_ids = pick_one_per_class(ags_test.labels, SIX_CLASSES)
-    selected_ids = pick_one_per_class(ags_test.labels, SELECTED_CLASSES)
     hv_wrong_ids = pick_herbaceous_to_forest(ags_test)
-    # Rows of the third figure: AnnualCrop, Forest, the 2 HV patches, Industrial, Residential.
-    selected_ids = selected_ids[:2] + hv_wrong_ids + selected_ids[2:]
+    selected = selected_patches(ags_ids, hv_wrong_ids)  # list of (index, rule)
 
     eurosat_rows = []
     for i in eurosat_ids:
@@ -186,41 +214,46 @@ def main() -> None:
             {"raw": raw_patch_ags(ags_test, i), "true_label": CLASSES[ags_test.labels[i]]}
         )
     selected_rows = []
-    for i in selected_ids:
+    for i, _ in selected:
         selected_rows.append(
             {"raw": raw_patch_ags(ags_test, i), "true_label": CLASSES[ags_test.labels[i]]}
         )
 
-    # 2. One RGB stretch (2-98 %) for every panel of the three figures.
-    all_raw = np.stack([r["raw"] for r in eurosat_rows + ags_rows + selected_rows])
-    limits = rgb_limits(all_raw)
+    # 2. One RGB stretch (2-98 %) per dataset. Aguascalientes: every patch shown, each once.
+    eurosat_limits = rgb_limits(np.stack([r["raw"] for r in eurosat_rows]))
+    ags_shown = list(ags_ids)
+    for i in hv_wrong_ids:
+        if i not in ags_shown:
+            ags_shown.append(i)
+    ags_limits = rgb_limits(np.stack([raw_patch_ags(ags_test, i) for i in ags_shown]))
 
     # 3. Save the list of patches.
     table = []
     for i in eurosat_ids:
-        table.append(["gradcam_eurosat", "eurosat_test", i, "", CLASSES[eurosat_labels[i]]])
+        label = CLASSES[eurosat_labels[i]]
+        table.append(["gradcam_eurosat", "eurosat_test", i, "", label, RULE_ONE_PER_CLASS])
     for i in ags_ids:
-        table.append(
-            ["gradcam_ags", "ags_test", i, ags_test.cell_ids[i], CLASSES[ags_test.labels[i]]]
-        )
-    for i in selected_ids:
-        table.append(
-            ["gradcam_selected", "ags_test", i, ags_test.cell_ids[i], CLASSES[ags_test.labels[i]]]
-        )
-    columns = ["figure", "dataset", "index", "cell_id", "true_label"]
+        cell_id = ags_test.cell_ids[i]
+        label = CLASSES[ags_test.labels[i]]
+        table.append(["gradcam_ags", "ags_test", i, cell_id, label, RULE_ONE_PER_CLASS])
+    for i, rule in selected:
+        cell_id = ags_test.cell_ids[i]
+        label = CLASSES[ags_test.labels[i]]
+        table.append(["gradcam_selected", "ags_test", i, cell_id, label, rule])
+    columns = ["figure", "dataset", "index", "cell_id", "true_label", "selection_rule"]
     pd.DataFrame(table, columns=columns).to_csv(FIGURES_DIR / "gradcam_samples.csv", index=False)
 
     # 4. Draw.
     rgb_columns = []
     for run_id in RGB_CKPTS:
         rgb_columns.append((MODEL_NAMES[run_id.rsplit("_rgb", 1)[0]], run_id))
-    draw_figure(FIGURES_DIR / "gradcam_eurosat.pdf", eurosat_rows, rgb_columns, limits)
-    draw_figure(FIGURES_DIR / "gradcam_ags.pdf", ags_rows, rgb_columns, limits)
+    draw_figure(FIGURES_DIR / "gradcam_eurosat.pdf", eurosat_rows, rgb_columns, eurosat_limits)
+    draw_figure(FIGURES_DIR / "gradcam_ags.pdf", ags_rows, rgb_columns, ags_limits)
     selected_columns = [
         ("ResNet-50 MS13 SSL4EO\nzero-shot", SSL4EO_ZERO_SHOT),
         ("ResNet-50 MS13 SSL4EO\nlast_block", SSL4EO_LAST_BLOCK),
     ]
-    draw_figure(FIGURES_DIR / "gradcam_selected.pdf", selected_rows, selected_columns, limits)
+    draw_figure(FIGURES_DIR / "gradcam_selected.pdf", selected_rows, selected_columns, ags_limits)
 
 
 if __name__ == "__main__":
