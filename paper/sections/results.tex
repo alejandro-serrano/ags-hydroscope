@@ -180,9 +180,11 @@ correct and a cross if wrong.}
 The two families of models produce maps of a different shape. CNN maps are smooth and
 concentrated on one compact region of the patch, sometimes two. ViT-S maps are made of many
 small spots spread over the whole patch. In Aguascalientes, many maps fall away from the object
-that defines the class. The clearest case is the Industrial cell, a solar park: the dark
-rectangle of panels at the top left is an object with no equivalent in EuroSAT, and the
-highest values of the maps fall mostly outside the panels.
+that defines the class. The Industrial cell of Fig.~\ref{fig:gradcam}(b) is a solar park,
+seen as a dark rectangle of panels at the top left. The maximum of the ResNet-50 map lies on
+the edge of the panels. The maximum of EfficientNet-B0 falls in the lower-left corner, and the
+spots of ViT-S spread over the bare ground. None of the three models predicted Industrial for
+this patch.
 
 Fig.~\ref{fig:gradcam_selected} compares the selected model before and after
 \texttt{last\_block} on the Aguascalientes patches of Fig.~\ref{fig:gradcam}(b). The
