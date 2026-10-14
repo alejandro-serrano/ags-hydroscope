@@ -186,6 +186,11 @@ data (`docs/explorer/data.js`) is rewritten by `python scripts/make_results.py`,
 so the page always shows the current results. See
 [docs/explorer/README.md](docs/explorer/README.md).
 
+[notebooks/hydroscope_walkthrough.ipynb](notebooks/hydroscope_walkthrough.ipynb) is the same tour as a
+notebook, also optional: it runs the repository code on the same data as the Explorer and checks that
+it reproduces the paper's numbers. GitHub shows it with its outputs; to run it and use its menus, open
+it with `jupyter lab notebooks/hydroscope_walkthrough.ipynb`.
+
 ---
 
 ## Results
