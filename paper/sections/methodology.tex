@@ -6,20 +6,21 @@ split. This section describes the models, the protocol, the experiments and the 
 
 \subsection{Models and initialization}
 
-We compared ResNet-50~\cite{he2016resnet}, a classic residual CNN and a common baseline;
-EfficientNet-B0~\cite{tan2019efficientnet}, a light and efficient CNN; and
-ViT-S/16~\cite{dosovitskiy2020vit}, a Vision Transformer that splits the image into
-16$\times$16-pixel patches and relates them with self-attention. This gives two CNN families
-and one transformer that can all be trained on one desktop machine with the same settings. We
-chose the small ViT because its size is close to that of ResNet-50: with RGB input it has
-21.7~M parameters against 23.5~M, while EfficientNet-B0 has 4.0~M (Table~\ref{tab:cost}). A
-CNN versus ViT gap is therefore not just a gap in model size.
+We compared ResNet-50~\cite{he2016resnet}, a CNN whose layers learn residual functions;
+EfficientNet-B0~\cite{tan2019efficientnet}, the baseline of a CNN family scaled in depth, width
+and resolution; and ViT-S/16~\cite{dosovitskiy2020vit}, a pure transformer applied to a sequence
+of 16$\times$16-pixel image patches. This gives two CNN families and one transformer that can
+all be trained on one desktop machine with the same settings. We chose the small ViT because its
+size is close to that of ResNet-50: with RGB input it has \ParamsViTRgb~M parameters against
+\ParamsResNetRgb~M, while EfficientNet-B0 has \ParamsEffNetRgb~M (Table~\ref{tab:cost}). A CNN
+versus ViT gap is therefore not just a gap in model size.
 
-All three models started from ImageNet~\cite{deng2009imagenet} weights (timm). For ResNet-50 and ViT-S/16 we also used
-SSL4EO-S12 weights~\cite{wang2023ssl4eo}, learned without labels on Sentinel-2 images: MoCo for
-ResNet-50 and DINO for ViT-S/16. These weights exist only for the 13 L1C bands, and they expect
-TorchGeo's normalization, $x/\num{10000}$. EfficientNet-B0 has no SSL4EO-S12 weights, so it has only
-ImageNet runs. The SSL4EO-S12 band order puts B8A right after B08, while our data keep B8A
+All three models started from ImageNet~\cite{deng2009imagenet} weights (timm). For ResNet-50 and
+ViT-S/16 we also used SSL4EO-S12 weights~\cite{wang2023ssl4eo}, learned without labels on
+the Sentinel-2 L1C images of the SSL4EO-S12 corpus with self-supervised methods that include MoCo
+and DINO. We used the MoCo weights for ResNet-50 and the DINO weights for ViT-S/16. These
+weights exist only for the 13 L1C bands, and they expect TorchGeo's normalization, $x/\num{10000}$. EfficientNet-B0 has no
+SSL4EO-S12 weights, so it has only ImageNet runs. The SSL4EO-S12 band order puts B8A right after B08, while our data keep B8A
 last. We therefore permuted the input channels of the first layer to EuroSAT order; without
 this step, B8A and B09 to B12 would each enter through a filter learned for a different band.
 

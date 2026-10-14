@@ -100,7 +100,7 @@ that after \texttt{head} (\ResNetRgbHead). Its Aguascalientes accuracy also fell
 
 The fall in accuracy was not limited to that run. In \AccuracyDropRuns{} of the \NumRuns{}
 runs, \texttt{last\_block} lowered the Aguascalientes accuracy below its zero-shot value while
-it raised macro-F1. This trade-off comes from the class-weighted loss of
+it raised macro-F1. This trade-off is consistent with the class-weighted loss of
 Eq.~\eqref{eq:class_weights}, which shifts predictions away from the dominant
 HerbaceousVegetation class. Fig.~\ref{fig:ags_f1}(b) shows both sides of it: Forest and Pasture
 are no longer at zero in any run, and HerbaceousVegetation F1 is lower than zero-shot in every

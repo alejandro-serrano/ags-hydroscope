@@ -28,7 +28,7 @@ one median per band for the whole state, it says nothing about individual classe
 
 The second source is that the same class does not look the same. Fig.~\ref{fig:study_area}(b)
 shows it: the EuroSAT Forest patch is a dark, closed canopy, while the Aguascalientes one is a
-gray, open cover crossed by tracks. April is the peak of the dry season, so rainfed fields are bare
+gray, open cover crossed by tracks. April falls in the dry season~\cite{inagua2022planhidrico}, so rainfed fields are bare
 or fallow, managed grass is brown, and natural cover is xeric scrub on dry, rocky ground, which
 resembles neither European forest nor European grassland. This is consistent with
 Fig.~\ref{fig:ags_f1}(a), where Forest and Pasture, two classes whose European look depends on
@@ -85,12 +85,13 @@ the benchmark is close to its ceiling for all three models. In Aguascalientes, a
 ImageNet runs, ViT-S had the highest observed macro-F1 in the zero-shot, \texttt{head} and
 \texttt{last\_block} columns of Table~\ref{tab:ags}. The first two columns are free of the
 \texttt{last\_block} confound, because there the three models train the same part: nothing, or
-only the classifier. With 13 bands and ImageNet weights, however, ResNet-50 came first after
-\texttt{last\_block}, so the ViT-S lead is tied to the RGB input in our data.
+only the classifier. With 13 bands and ImageNet weights, however, ResNet-50 had the highest
+observed value after \texttt{last\_block}, by a small margin over the other two, so the ViT-S
+lead is tied to the RGB input in our data.
 
-One hypothesis is global context against local texture. Self-attention relates every token to
-every other one, which lets a ViT use long-range relations between pixels~\cite{bazi2021vit},
-while a CNN builds its features from local neighborhoods. If the arrangement of a scene, such as
+One hypothesis is global context against local texture. In a ViT, attention derives long-range
+relations between pixels~\cite{bazi2021vit}, while a CNN builds its features from local
+neighborhoods. If the arrangement of a scene, such as
 parcel boundaries or a street grid, carried over to Aguascalientes better than its color and
 texture, a model that weighs the whole patch would lose less. The Grad-CAM maps are consistent
 with this: ViT-S maps spread over the whole patch, while CNN maps cover one compact region. We
@@ -122,8 +123,8 @@ ImageNet counterpart on EuroSAT, so the benefit is not uniform.
 
 \subsection{What the Grad-CAM maps suggest}
 
-In Aguascalientes, many maps fall away from the object that defines the class, which is
-consistent with models looking for European cues that the patches lack. The solar park of
+The placement of the Aguascalientes maps described in Section~\ref{sec:results} is consistent
+with models looking for European cues, such as green vegetation, that these patches lack. The solar park of
 Fig.~\ref{fig:gradcam}(b) is an out-of-distribution object: no model centered its map on the
 panels, and none predicted Industrial. Fig.~\ref{fig:gradcam_selected} adds one
 encouraging case: after \texttt{last\_block}, the selected model predicted the AnnualCrop patch
@@ -133,7 +134,7 @@ shows a possible behavior, not a general one.
 The main error after fine-tuning, HerbaceousVegetation predicted as Forest
 (Fig.~\ref{fig:confusion}(b)), has a likely reason in the landscape. The two such patches in
 Fig.~\ref{fig:gradcam_selected} show rough ground with dark areas, and one is almost entirely
-dark. In Aguascalientes, Forest is oak and pine on the western ranges, dark even in April, so
+dark. In Aguascalientes, Forest on the western ranges stays dark even in April, so
 xeric scrub on rugged hills shares its two most visible cues: dark tone and rough relief. The
 guide separates them with a threshold, continuous canopy over 70\,\% of the cell, on what is
 in reality a gradual change from scrub to open woodland to forest. The class weights may add
@@ -161,14 +162,14 @@ paired test was run, so small gaps between runs may change with another seed. Se
 month, April 2024, so season and region are mixed in the shift and the rainy season is not
 covered. Third, a single annotator labeled the cells, with no agreement measure; the boundaries
 between scrub, open woodland and pasture depend on judgment. Fourth, the test set has 541
-patches, River only 7, and several classes a few dozen or fewer, so per-class F1 is noisy; skipped
+patches and the fine-tune set 561, River has only 7 test patches, and several classes a few
+dozen or fewer, so per-class F1 is noisy; skipped
 covers, such as greenhouses and quarries, are not measured at all. Fifth, 35 test patches border
 a fine-tune cell because the split has no buffer zone, so the fine-tuned scores may be slightly
 optimistic. Sixth, the 64-px patches were resized to 224 pixels, which adds no detail and no
 context beyond the cell. Seventh, we used L1C data without atmospheric correction, so part of the
-spectral shift, as B10 suggests, may be atmospheric. Eighth, peak memory is what the MPS driver
-reserved, not what each model needs, and EfficientNet-B0 had no SSL4EO-S12 weights, so RQ-e was
-answered for two models only.
+spectral shift, as B10 suggests, may be atmospheric. Eighth, EfficientNet-B0 had no SSL4EO-S12
+weights, so RQ-e was answered for two models only.
 
 \subsection{Future work}
 

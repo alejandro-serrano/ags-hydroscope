@@ -1,19 +1,49 @@
-figure,dataset,index,cell_id,true_label,selection_rule
-gradcam_eurosat,eurosat_test,394,,AnnualCrop,"seed 0, one random test patch per class"
-gradcam_eurosat,eurosat_test,1026,,Forest,"seed 0, one random test patch per class"
-gradcam_eurosat,eurosat_test,1245,,HerbaceousVegetation,"seed 0, one random test patch per class"
-gradcam_eurosat,eurosat_test,2405,,Industrial,"seed 0, one random test patch per class"
-gradcam_eurosat,eurosat_test,4231,,Residential,"seed 0, one random test patch per class"
-gradcam_eurosat,eurosat_test,5288,,SeaLake,"seed 0, one random test patch per class"
-gradcam_ags,ags_test,261,r0083_c0148,AnnualCrop,"seed 0, one random test patch per class"
-gradcam_ags,ags_test,276,r0136_c0101,Forest,"seed 0, one random test patch per class"
-gradcam_ags,ags_test,22,r0081_c0159,HerbaceousVegetation,"seed 0, one random test patch per class"
-gradcam_ags,ags_test,155,r0128_c0115,Industrial,"seed 0, one random test patch per class"
-gradcam_ags,ags_test,455,r0087_c0090,Residential,"seed 0, one random test patch per class"
-gradcam_ags,ags_test,234,r0104_c0037,SeaLake,"seed 0, one random test patch per class"
-gradcam_selected,ags_test,261,r0083_c0148,AnnualCrop,same patch as gradcam_ags
-gradcam_selected,ags_test,276,r0136_c0101,Forest,same patch as gradcam_ags
-gradcam_selected,ags_test,361,r0106_c0112,HerbaceousVegetation,"seed 0, random HerbaceousVegetation test patch predicted Forest by last_block"
-gradcam_selected,ags_test,497,r0091_c0039,HerbaceousVegetation,"seed 0, random HerbaceousVegetation test patch predicted Forest by last_block"
-gradcam_selected,ags_test,155,r0128_c0115,Industrial,same patch as gradcam_ags
-gradcam_selected,ags_test,455,r0087_c0090,Residential,same patch as gradcam_ags
+figure,dataset,index,cell_id,true_label,selection_rule,run_id,stage,predicted_label,correct
+gradcam_eurosat,eurosat_test,394,,AnnualCrop,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,AnnualCrop,True
+gradcam_eurosat,eurosat_test,394,,AnnualCrop,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,AnnualCrop,True
+gradcam_eurosat,eurosat_test,394,,AnnualCrop,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,AnnualCrop,True
+gradcam_eurosat,eurosat_test,1026,,Forest,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,Forest,True
+gradcam_eurosat,eurosat_test,1026,,Forest,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,Forest,True
+gradcam_eurosat,eurosat_test,1026,,Forest,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,Forest,True
+gradcam_eurosat,eurosat_test,1245,,HerbaceousVegetation,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,HerbaceousVegetation,True
+gradcam_eurosat,eurosat_test,1245,,HerbaceousVegetation,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,HerbaceousVegetation,True
+gradcam_eurosat,eurosat_test,1245,,HerbaceousVegetation,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,Pasture,False
+gradcam_eurosat,eurosat_test,2405,,Industrial,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,Industrial,True
+gradcam_eurosat,eurosat_test,2405,,Industrial,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,Industrial,True
+gradcam_eurosat,eurosat_test,2405,,Industrial,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,Industrial,True
+gradcam_eurosat,eurosat_test,4231,,Residential,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,Residential,True
+gradcam_eurosat,eurosat_test,4231,,Residential,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,Residential,True
+gradcam_eurosat,eurosat_test,4231,,Residential,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,Residential,True
+gradcam_eurosat,eurosat_test,5288,,SeaLake,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,SeaLake,True
+gradcam_eurosat,eurosat_test,5288,,SeaLake,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,SeaLake,True
+gradcam_eurosat,eurosat_test,5288,,SeaLake,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,SeaLake,True
+gradcam_ags,ags_test,261,r0083_c0148,AnnualCrop,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,AnnualCrop,True
+gradcam_ags,ags_test,261,r0083_c0148,AnnualCrop,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,HerbaceousVegetation,False
+gradcam_ags,ags_test,261,r0083_c0148,AnnualCrop,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,HerbaceousVegetation,False
+gradcam_ags,ags_test,276,r0136_c0101,Forest,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,HerbaceousVegetation,False
+gradcam_ags,ags_test,276,r0136_c0101,Forest,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,HerbaceousVegetation,False
+gradcam_ags,ags_test,276,r0136_c0101,Forest,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,PermanentCrop,False
+gradcam_ags,ags_test,22,r0081_c0159,HerbaceousVegetation,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,HerbaceousVegetation,True
+gradcam_ags,ags_test,22,r0081_c0159,HerbaceousVegetation,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,HerbaceousVegetation,True
+gradcam_ags,ags_test,22,r0081_c0159,HerbaceousVegetation,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,HerbaceousVegetation,True
+gradcam_ags,ags_test,155,r0128_c0115,Industrial,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,AnnualCrop,False
+gradcam_ags,ags_test,155,r0128_c0115,Industrial,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,HerbaceousVegetation,False
+gradcam_ags,ags_test,155,r0128_c0115,Industrial,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,HerbaceousVegetation,False
+gradcam_ags,ags_test,455,r0087_c0090,Residential,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,Industrial,False
+gradcam_ags,ags_test,455,r0087_c0090,Residential,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,Residential,True
+gradcam_ags,ags_test,455,r0087_c0090,Residential,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,Residential,True
+gradcam_ags,ags_test,234,r0104_c0037,SeaLake,"seed 0, one random test patch per class",resnet50_rgb_imagenet,zero-shot,HerbaceousVegetation,False
+gradcam_ags,ags_test,234,r0104_c0037,SeaLake,"seed 0, one random test patch per class",efficientnet_b0_rgb_imagenet,zero-shot,HerbaceousVegetation,False
+gradcam_ags,ags_test,234,r0104_c0037,SeaLake,"seed 0, one random test patch per class",vit_small_rgb_imagenet,zero-shot,HerbaceousVegetation,False
+gradcam_selected,ags_test,261,r0083_c0148,AnnualCrop,same patch as gradcam_ags,resnet50_ms13_ssl4eo,zero-shot,Pasture,False
+gradcam_selected,ags_test,261,r0083_c0148,AnnualCrop,same patch as gradcam_ags,resnet50_ms13_ssl4eo_ft-last_block,last_block,AnnualCrop,True
+gradcam_selected,ags_test,276,r0136_c0101,Forest,same patch as gradcam_ags,resnet50_ms13_ssl4eo,zero-shot,HerbaceousVegetation,False
+gradcam_selected,ags_test,276,r0136_c0101,Forest,same patch as gradcam_ags,resnet50_ms13_ssl4eo_ft-last_block,last_block,HerbaceousVegetation,False
+gradcam_selected,ags_test,361,r0106_c0112,HerbaceousVegetation,"seed 0, random HerbaceousVegetation test patch predicted Forest by last_block",resnet50_ms13_ssl4eo,zero-shot,HerbaceousVegetation,True
+gradcam_selected,ags_test,361,r0106_c0112,HerbaceousVegetation,"seed 0, random HerbaceousVegetation test patch predicted Forest by last_block",resnet50_ms13_ssl4eo_ft-last_block,last_block,Forest,False
+gradcam_selected,ags_test,497,r0091_c0039,HerbaceousVegetation,"seed 0, random HerbaceousVegetation test patch predicted Forest by last_block",resnet50_ms13_ssl4eo,zero-shot,HerbaceousVegetation,True
+gradcam_selected,ags_test,497,r0091_c0039,HerbaceousVegetation,"seed 0, random HerbaceousVegetation test patch predicted Forest by last_block",resnet50_ms13_ssl4eo_ft-last_block,last_block,Forest,False
+gradcam_selected,ags_test,155,r0128_c0115,Industrial,same patch as gradcam_ags,resnet50_ms13_ssl4eo,zero-shot,AnnualCrop,False
+gradcam_selected,ags_test,155,r0128_c0115,Industrial,same patch as gradcam_ags,resnet50_ms13_ssl4eo_ft-last_block,last_block,HerbaceousVegetation,False
+gradcam_selected,ags_test,455,r0087_c0090,Residential,same patch as gradcam_ags,resnet50_ms13_ssl4eo,zero-shot,Residential,True
+gradcam_selected,ags_test,455,r0087_c0090,Residential,same patch as gradcam_ags,resnet50_ms13_ssl4eo_ft-last_block,last_block,Residential,True

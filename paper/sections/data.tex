@@ -6,8 +6,9 @@ identical so that the main thing that changes between the two is the landscape.
 
 \subsection{EuroSAT}
 
-We used EuroSAT MS~\cite{helber2019eurosat}, Sentinel-2~\cite{drusch2012sentinel2} L1C patches of 13$\times$64$\times$64
-pixels at 10~m in 10 land-use classes. We kept the official TorchGeo~\cite{stewart2022torchgeo} split of \num{16200} training,
+We used EuroSAT~\cite{helber2019eurosat}, a dataset of Sentinel-2~\cite{drusch2012sentinel2}
+images in 13 spectral bands and 10 land-use classes. Its multispectral version, EuroSAT MS, holds
+L1C patches of 13$\times$64$\times$64 pixels at 10~m. We kept the official TorchGeo~\cite{stewart2022torchgeo} split of \num{16200} training,
 \num{5400} validation and \num{5400} test patches, and the TorchGeo band order (B01 to B12, with B8A last).
 The RGB input is B04, B03 and B02 taken from the same 13-band files. We chose this so that the
 RGB and 13-band runs see the same patches and the same pixel values; only the number of bands
@@ -20,7 +21,8 @@ We built one Sentinel-2 composite of the state for April 2024 in Google Earth En
 the L1C harmonized collection (\texttt{COPERNICUS/S2\_HARMONIZED}, digital numbers equal to
 reflectance $\times$ \num{10000}) because EuroSAT is also L1C. With surface reflectance (L2A), the
 models would face a change of processing level on top of the change of region. We chose April
-because it is the peak of the dry season, so one month gives enough clear images. Clouds were
+because it falls in the dry season, and March and April are the months with the least rain of
+the year~\cite{inagua2022planhidrico}, so one month gives enough clear images. Clouds were
 masked with QA60 bits 10 (opaque) and 11 (cirrus), and we took the per-pixel median of the month.
 The median reduces the clouds and shadows that the mask misses, because they are outliers in the
 time series of each pixel. All bands were resampled to 10~m and clipped to the state boundary

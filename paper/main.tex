@@ -38,13 +38,13 @@ alejandro.serrano@live.com}}
 \begin{abstract}
 Land use in Aguascalientes, a semi-arid state in central Mexico, is tied to its main water
 problem, the overexploitation of groundwater. Yet no labeled Sentinel-2 patches of the state
-existed, and the available land-use models were trained on European landscapes. We measured how
+existed, and available land-use models were trained on European landscapes. We measured how
 much such a model loses there and how much light fine-tuning wins back. We compared two
 convolutional neural networks (CNNs), ResNet-50 and EfficientNet-B0, with a Vision Transformer,
 ViT-S/16, in eight runs under one shared protocol, with RGB or 13-band input and ImageNet or
-self-supervised SSL4EO-S12 weights. The models were trained on EuroSAT and tested on \num{1102}
-hand-labeled Aguascalientes patches, split into fine-tuning and test sets by spatial
-blocks. Every run reached a EuroSAT macro-F1 of at least \EuroSATMin. Without local
+self-supervised SSL4EO-S12 weights. The models were trained on EuroSAT, then fine-tuned and tested on
+\num{1102} hand-labeled Aguascalientes patches (561 for fine-tuning, 541 for testing), split by
+spatial blocks. Every run reached a EuroSAT macro-F1 of at least \EuroSATMin. Without local
 training, no Aguascalientes macro-F1 went above \ZeroShotMax, and fine-tuning the last
 block recovered at most \RecoveryMax{} of the drop. In Aguascalientes, 13 bands helped only
 ResNet-50. With 13 bands, SSL4EO-S12 weights scored higher than ImageNet weights after

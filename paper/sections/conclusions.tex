@@ -19,10 +19,10 @@ stand out.
   fine-tuning.
   \item \emph{The effect of the input bands and the weights depended on the model (RQ-d,
   RQ-e).} With ImageNet weights, 13 bands helped only ResNet-50 in Aguascalientes. With 13
-  bands, the SSL4EO-S12 runs gave the highest observed macro-F1 after \texttt{last\_block} for
-  both ResNet-50 and ViT-S, but they also used another normalization, so the gap cannot be
-  credited to the weights alone. This means that the answer depends on the combination of model, bands and weights, not
-  only on CNN versus ViT.
+  bands, the SSL4EO-S12 runs reached a higher macro-F1 after \texttt{last\_block} than the
+  ImageNet runs, for both ResNet-50 and ViT-S, but they also used another normalization, so the
+  gap cannot be credited to the weights alone. This means that the answer depends on the
+  combination of model, bands and weights, not only on CNN versus ViT.
 \end{enumerate}
 
 The selection rule, fixed before any result, chose ResNet-50/MS13/SSL4EO with
@@ -32,8 +32,9 @@ ViT-S/RGB/ImageNet came first with \ImageNetLastBlockBest, \ImageNetSelectionMar
 next run. On cost (RQ-a), EfficientNet-B0 had far fewer parameters but a similar time per epoch,
 and ViT-S/RGB/ImageNet had the highest observed throughput, \PatchesPerSecMax{} patches/s.
 
-What we learned is that the domain shift outweighed the differences between the models, so a
-model for a new region has to be judged on local labels and a spatially separated test set, not
-on EuroSAT alone. The selected model is the starting point for the second stage of the
-project, a monthly land-use monitor of the state. Section~\ref{sec:discussion} lists the
-experiments that would make these answers firmer.
+On the method side, we learned that sharing every hyperparameter did not make the fine-tuning
+comparison like-for-like, because the same \texttt{last\_block} mode trained a different share
+of each model; a fair comparison has to match what is trained, not only how. Next, the selected
+model will be the starting point for the second stage of the project, a monthly land-use monitor
+of the state, and the experiments in Section~\ref{sec:discussion}, starting with several seeds
+per configuration, would make these answers firmer.

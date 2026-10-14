@@ -409,6 +409,10 @@ def paper_macros(summary: pd.DataFrame, selection_all: dict, selection_imagenet:
     macros["PeakMemVitMin"] = f"{vit['peak_mem_mb'].min() / 1024:.2f}"
     macros["PatchesPerSecMin"] = f"{summary['patches_per_s'].min():.0f}"
     macros["PatchesPerSecMax"] = f"{summary['patches_per_s'].max():.0f}"
+    # Parameters with RGB input, in millions (same rounding as the Params (M) column)
+    macros["ParamsResNetRgb"] = f"{by_id.loc['resnet50_rgb_imagenet', 'params'] / 1e6:.1f}"
+    macros["ParamsEffNetRgb"] = f"{by_id.loc['efficientnet_b0_rgb_imagenet', 'params'] / 1e6:.1f}"
+    macros["ParamsViTRgb"] = f"{by_id.loc['vit_small_rgb_imagenet', 'params'] / 1e6:.1f}"
     # Selection rule (protocol section 8)
     macros["AgsLastBlockBest"] = fmt3(by_id.loc[selection_all["winner"], "ags_last_block"])
     macros["SelectionMargin"] = fmt3(selection_all["margin"])

@@ -2,7 +2,8 @@
 
 Run: python scripts/make_gradcam.py
 Outputs in paper/figures/: gradcam_eurosat.pdf, gradcam_ags.pdf, gradcam_selected.pdf and
-gradcam_samples.csv (which patches are shown, and the rule that chose each one).
+gradcam_samples.csv (one row per map: the patch, the rule that chose it, the model, and its
+predicted class and whether it is correct).
 The figures contain no numbers: only the predicted class and whether it is correct.
 
 Selection rules (seed 0):
@@ -153,15 +154,18 @@ def selected_patches(ags_ids: list[int], hv_wrong_ids: list[int]) -> list[tuple[
 
 def draw_figure(
     path: Path, rows: list[dict], columns: list[tuple[str, str]], limits: np.ndarray
-) -> None:
+) -> list[list[str]]:
     """Draw a grid: one row per patch, first column RGB, then one Grad-CAM column per model.
 
     ``rows`` has the keys raw (13, 64, 64) and true_label; ``columns`` is a list of
-    (title, run_id).
+    (title, run_id). Returns the predicted class of every map, as predictions[row][column].
     """
     n_rows = len(rows)
     n_cols = len(columns) + 1
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(1.9 * n_cols, 1.95 * n_rows))
+    predictions = []
+    for _ in rows:
+        predictions.append([])
 
     # Every model is loaded once and used for all rows.
     for col, (title, run_id) in enumerate(columns, start=1):
@@ -176,6 +180,7 @@ def draw_figure(
             ax.imshow(overlay_cam(rgb, cam))
             mark = "✓" if CLASSES[pred] == item["true_label"] else "✗"
             ax.set_xlabel(f"{CLASSES[pred]} {mark}", fontsize=MIN_FONT)
+            predictions[row].append(CLASSES[pred])
 
     axes[0, 0].set_title("RGB", fontsize=MIN_FONT)
     for row, item in enumerate(rows):
@@ -190,6 +195,37 @@ def draw_figure(
     fig.savefig(path, metadata={"CreationDate": None})
     plt.close(fig)
     print(f"wrote {path}")
+    return predictions
+
+
+def sample_rows(
+    figure: str,
+    dataset: str,
+    rows: list[dict],
+    columns: list[tuple[str, str]],
+    predictions: list[list[str]],
+) -> list[list]:
+    """One CSV row per map: the patch, the rule that chose it, the model and its prediction."""
+    table = []
+    for item, row_predictions in zip(rows, predictions, strict=True):
+        for (_, run_id), predicted in zip(columns, row_predictions, strict=True):
+            stage = "last_block" if run_id.endswith("ft-last_block") else "zero-shot"
+            correct = predicted == item["true_label"]
+            table.append(
+                [
+                    figure,
+                    dataset,
+                    item["index"],
+                    item["cell_id"],
+                    item["true_label"],
+                    item["rule"],
+                    run_id,
+                    stage,
+                    predicted,
+                    correct,
+                ]
+            )
+    return table
 
 
 def main() -> None:
@@ -207,16 +243,36 @@ def main() -> None:
     eurosat_rows = []
     for i in eurosat_ids:
         raw = eurosat_test[i]["image"].numpy()  # (13, 64, 64) raw DN
-        eurosat_rows.append({"raw": raw, "true_label": CLASSES[eurosat_labels[i]]})
+        eurosat_rows.append(
+            {
+                "raw": raw,
+                "true_label": CLASSES[eurosat_labels[i]],
+                "index": i,
+                "cell_id": "",
+                "rule": RULE_ONE_PER_CLASS,
+            }
+        )
     ags_rows = []
     for i in ags_ids:
         ags_rows.append(
-            {"raw": raw_patch_ags(ags_test, i), "true_label": CLASSES[ags_test.labels[i]]}
+            {
+                "raw": raw_patch_ags(ags_test, i),
+                "true_label": CLASSES[ags_test.labels[i]],
+                "index": i,
+                "cell_id": ags_test.cell_ids[i],
+                "rule": RULE_ONE_PER_CLASS,
+            }
         )
     selected_rows = []
-    for i, _ in selected:
+    for i, rule in selected:
         selected_rows.append(
-            {"raw": raw_patch_ags(ags_test, i), "true_label": CLASSES[ags_test.labels[i]]}
+            {
+                "raw": raw_patch_ags(ags_test, i),
+                "true_label": CLASSES[ags_test.labels[i]],
+                "index": i,
+                "cell_id": ags_test.cell_ids[i],
+                "rule": rule,
+            }
         )
 
     # 2. One RGB stretch (2-98 %) per dataset. Aguascalientes: every patch shown, each once.
@@ -227,33 +283,41 @@ def main() -> None:
             ags_shown.append(i)
     ags_limits = rgb_limits(np.stack([raw_patch_ags(ags_test, i) for i in ags_shown]))
 
-    # 3. Save the list of patches.
-    table = []
-    for i in eurosat_ids:
-        label = CLASSES[eurosat_labels[i]]
-        table.append(["gradcam_eurosat", "eurosat_test", i, "", label, RULE_ONE_PER_CLASS])
-    for i in ags_ids:
-        cell_id = ags_test.cell_ids[i]
-        label = CLASSES[ags_test.labels[i]]
-        table.append(["gradcam_ags", "ags_test", i, cell_id, label, RULE_ONE_PER_CLASS])
-    for i, rule in selected:
-        cell_id = ags_test.cell_ids[i]
-        label = CLASSES[ags_test.labels[i]]
-        table.append(["gradcam_selected", "ags_test", i, cell_id, label, rule])
-    columns = ["figure", "dataset", "index", "cell_id", "true_label", "selection_rule"]
-    pd.DataFrame(table, columns=columns).to_csv(FIGURES_DIR / "gradcam_samples.csv", index=False)
-
-    # 4. Draw.
+    # 3. Draw. Each figure returns the predicted class of every map.
     rgb_columns = []
     for run_id in RGB_CKPTS:
         rgb_columns.append((MODEL_NAMES[run_id.rsplit("_rgb", 1)[0]], run_id))
-    draw_figure(FIGURES_DIR / "gradcam_eurosat.pdf", eurosat_rows, rgb_columns, eurosat_limits)
-    draw_figure(FIGURES_DIR / "gradcam_ags.pdf", ags_rows, rgb_columns, ags_limits)
     selected_columns = [
         ("ResNet-50 MS13 SSL4EO\nzero-shot", SSL4EO_ZERO_SHOT),
         ("ResNet-50 MS13 SSL4EO\nlast_block", SSL4EO_LAST_BLOCK),
     ]
-    draw_figure(FIGURES_DIR / "gradcam_selected.pdf", selected_rows, selected_columns, ags_limits)
+    eurosat_preds = draw_figure(
+        FIGURES_DIR / "gradcam_eurosat.pdf", eurosat_rows, rgb_columns, eurosat_limits
+    )
+    ags_preds = draw_figure(FIGURES_DIR / "gradcam_ags.pdf", ags_rows, rgb_columns, ags_limits)
+    selected_preds = draw_figure(
+        FIGURES_DIR / "gradcam_selected.pdf", selected_rows, selected_columns, ags_limits
+    )
+
+    # 4. Save the list of maps: one row per patch and model.
+    table = sample_rows("gradcam_eurosat", "eurosat_test", eurosat_rows, rgb_columns, eurosat_preds)
+    table += sample_rows("gradcam_ags", "ags_test", ags_rows, rgb_columns, ags_preds)
+    table += sample_rows(
+        "gradcam_selected", "ags_test", selected_rows, selected_columns, selected_preds
+    )
+    columns = [
+        "figure",
+        "dataset",
+        "index",
+        "cell_id",
+        "true_label",
+        "selection_rule",
+        "run_id",
+        "stage",
+        "predicted_label",
+        "correct",
+    ]
+    pd.DataFrame(table, columns=columns).to_csv(FIGURES_DIR / "gradcam_samples.csv", index=False)
 
 
 if __name__ == "__main__":
