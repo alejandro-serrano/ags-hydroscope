@@ -4,7 +4,8 @@ Run: python scripts/make_results.py   (or: make tables figures)
 Every number comes from the JSON results or the CSV training logs; nothing is typed by hand.
 Outputs: paper/tables/*.tex, paper/tables/summary.csv, paper/tables/macros.tex (the numbers
 quoted in the text, read from summary.csv), paper/figures/*.pdf and the results table of
-README.md (between the results:start and results:end markers, also read from summary.csv).
+README.md (between the results:start and results:end markers, also read from summary.csv)
+and docs/explorer/data.js (written by scripts/make_explorer_data.py, called at the end of main).
 It runs offline with only the files in git; data/ags/labels.csv is optional (see main).
 macros.tex also holds two numbers that are not results: the per-band z-scores of the
 Aguascalientes composite, read from docs/data_ags_check.md (written by
@@ -900,6 +901,12 @@ def main() -> None:
     written.append(write_readme_results(summary_csv, len(classes), selection_all["winner"]))
 
     written += write_figures(results, summary, selection_all["winner"])
+
+    # Imported here and not at the top of the file: make_explorer_data reuses functions of this
+    # script, so a top-level import would be circular.
+    from make_explorer_data import write_explorer_data
+
+    written.append(write_explorer_data())
     print("Written files:")
     for path in written:
         print(f"  {path.relative_to(ROOT)}")
