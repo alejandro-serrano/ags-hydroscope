@@ -20,6 +20,16 @@
     { key: "last_block", label: "last_block" },
   ];
   const BANDS_LABEL = { rgb: "RGB", ms13: "13 bands" };
+  // Paper figures: MODEL_COLORS in scripts/make_results.py (Fig. 2, convergence).
+  const PAPER = { colors: { resnet50: "#2a78d6", efficientnet_b0: "#eb6834", vit_small: "#1baf7a" }, ink: "#222222", gray: "#777777" };
+  // Presentation figures (dumbbell and cost scatter slides).
+  const SLIDE = {
+    ink: "#13232B", soft: "#4A5560", grid: "#D8D1C2", teal: "#1E7A88", tealLight: "#7FB3BB", orange: "#C7741A",
+    orangeText: "#A85F12", gray: "#8A949C", dropBand: "#F6E3C8",
+    model: { resnet50: "#1E7A88", efficientnet_b0: "#7FB3BB", vit_small: "#C7741A" },
+  };
+  const paperColor = (m) => PAPER.colors[m] || "#68758D";
+  const slideColor = (m) => SLIDE.model[m] || "#68758D";
 
   const fmt3 = (v) => (v === null || v === undefined || Number.isNaN(v) ? "–" : v.toFixed(3));
   const pct = (v) => (v * 100).toFixed(1) + " %";
@@ -60,9 +70,10 @@
 
   // ------------------------------------------------------------------ state
   const state = {
-    tab: "runs", run: runsById.has(selected) ? selected : DATA.runs[0].run_id,
-    stage: "zero_shot", view: "share", cell: null, formulas: false,
-    splitMode: "blocks", seed: 1, step: 0,
+    tab: "eurosat", run: runsById.has(selected) ? selected : DATA.runs[0].run_id,
+    stage: "zero_shot", view: "count", cell: null, formulas: false,
+    splitMode: "blocks", seed: 1, step: 0, basemap: true,
+    curveBands: "rgb", curveMetric: "val_macro_f1", costX: "patches_per_s", costY: "ags_last_block",
   };
   const renderers = {};
   function setState(patch) {
@@ -100,9 +111,9 @@
   })();
 
   // ------------------------------------------------------------------ tabs
-  const TABS = ["runs", "confusion", "split", "code"];
+  const TABS = ["eurosat", "runs", "confusion", "cost", "split", "code"];
   function showTab(tab) {
-    if (!TABS.includes(tab)) tab = "runs";
+    if (!TABS.includes(tab)) tab = "eurosat";
     document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === tab));
     TABS.forEach((t) => (document.getElementById("demo-" + t).hidden = t !== tab));
     if (location.hash.slice(1) !== tab) history.replaceState(null, "", "#" + tab);
@@ -170,16 +181,297 @@
     };
   }
 
-  // ================================================================== demo 1 · drop and recovery
+  // ================================================================== demo 1 · results on EuroSAT
+  // Same layout and colors as Fig. 2 of the paper (scripts/make_results.py: plot_convergence).
+  (function demoEuroSAT() {
+    const root = document.getElementById("demo-eurosat");
+    const curves = DATA.curves || null;
+    const tr = DATA.training || {};
+    const testF1 = DATA.runs.map((r) => r.evaluations.eurosat.macro_f1);
+    const paperLabel = (r) => `${nameOf("model", r.model)} / ${(DATA.names.init || {})[r.init] || r.init}`;
+    root.innerHTML = `
+      <div class="demo-head">
+        <div class="rotulo">Demo 1 · RQ-a</div>
+        <h2>On EuroSAT, the ${DATA.runs.length} runs end up almost tied</h2>
+        <p class="lead">Every run was trained on the same EuroSAT split with one shared protocol${tr.max_epochs ? `: up to ${tr.max_epochs} epochs, with early stopping (patience ${tr.patience}) on validation macro-F1` : ""}.
+        The curves are Fig. 2 of the paper; the dots below are the final score on the EuroSAT test set.</p>
+      </div>
+      <div class="grid">
+        <div class="tarjeta panel" id="eu-panel"></div>
+        <div class="stack">
+          <div class="tarjeta"><h3 id="eu-curve-title"></h3><div id="eu-curves" class="panels"></div></div>
+          <div class="tarjeta"><h3>EuroSAT test set <span class="hint" style="font-weight:400">· click a row to select that run in the other demos</span></h3>
+            <div id="eu-test"></div>
+            <div class="legend"><span><i style="background:#222"></i>Macro-F1 (${DATA.classes.length} classes)</span><span><i style="background:#fff;border:2px solid #222"></i>Accuracy</span></div>
+          </div>
+        </div>
+      </div>`;
+
+    const panel = document.getElementById("eu-panel");
+    panel.appendChild(el("div", { class: "tile" },
+      `<div class="v">${fmt3(d3.min(testF1))} – ${fmt3(d3.max(testF1))}</div><div class="k">EuroSAT test macro-F1, all ${DATA.runs.length} runs</div>`));
+    const metricBox = el("div", { class: "control" });
+    metricBox.appendChild(el("span", { class: "rotulo" }, "Validation metric"));
+    const updateMetric = segmented(metricBox, [{ value: "val_macro_f1", label: "Macro-F1 (as in the paper)" }, { value: "val_accuracy", label: "Accuracy" }], (v) => setState({ curveMetric: v }));
+    panel.appendChild(metricBox);
+    panel.appendChild(el("p", { class: "hint" },
+      "One panel per input, with the same vertical axis, as in the paper. Solid lines: ImageNet weights; dashed: SSL4EO-S12. " +
+      "A curve that ends before the last epoch was stopped by early stopping. Hover a panel to read every run at one epoch."));
+
+    if (!curves) {
+      document.getElementById("eu-curves").innerHTML =
+        '<div class="callout warm">The training curves are not in <code>data.js</code> yet. Run <code>python scripts/make_results.py</code> and reload.</div>';
+    }
+    const maxEpoch = curves ? d3.max(Object.values(curves), (c) => d3.max(c.epoch)) : tr.max_epochs || 1;
+    const PW = 440, PH = 380, pm = { l: 56, r: 12, t: 30, b: 44 };
+    const x = d3.scaleLinear().domain([0.5, maxEpoch + 0.5]).range([pm.l, PW - pm.r]);
+    const y = d3.scaleLinear().range([PH - pm.b, pm.t]);
+    const panels = curves ? BANDS.map((bands) => {
+      const svg = d3.select("#eu-curves").append("svg").attr("viewBox", `0 0 ${PW} ${PH}`)
+        .attr("role", "img").attr("aria-label", `Validation curves on EuroSAT, ${nameOf("bands", bands)} input`);
+      svg.append("text").attr("x", (pm.l + PW - pm.r) / 2).attr("y", 18).attr("text-anchor", "middle").attr("font-size", 14)
+        .attr("fill", PAPER.ink).text(`${(DATA.names.bands || {})[bands] || bands} input`);
+      const grid = svg.append("g");
+      const gx = svg.append("g").attr("class", "axis paper").attr("transform", `translate(0,${PH - pm.b})`);
+      const gy = svg.append("g").attr("class", "axis paper").attr("transform", `translate(${pm.l},0)`);
+      svg.append("rect").attr("x", pm.l).attr("y", pm.t).attr("width", PW - pm.r - pm.l).attr("height", PH - pm.b - pm.t)
+        .attr("fill", "none").attr("stroke", PAPER.gray).attr("stroke-width", 0.9);
+      svg.append("text").attr("x", (pm.l + PW - pm.r) / 2).attr("y", PH - 8).attr("text-anchor", "middle").attr("font-size", 12.5).attr("fill", PAPER.ink).text("Epoch");
+      const yTitle = svg.append("text").attr("transform", `translate(14,${(PH - pm.b + pm.t) / 2}) rotate(-90)`).attr("text-anchor", "middle").attr("font-size", 12.5).attr("fill", PAPER.ink);
+      const linesG = svg.append("g"), dotsG = svg.append("g"), legendG = svg.append("g");
+      const hover = svg.append("line").attr("stroke", "#9AA5B4").attr("stroke-dasharray", "3 3").attr("y1", pm.t).attr("y2", PH - pm.b).attr("opacity", 0);
+      const runs = DATA.runs.filter((r) => r.bands === bands && curves[r.run_id]);
+      svg.append("rect").attr("x", pm.l).attr("y", pm.t).attr("width", PW - pm.r - pm.l).attr("height", PH - pm.b - pm.t).attr("fill", "transparent")
+        .on("mousemove", (e) => {
+          const [mx] = d3.pointer(e);
+          const ep = Math.max(1, Math.min(maxEpoch, Math.round(x.invert(mx))));
+          hover.attr("x1", x(ep)).attr("x2", x(ep)).attr("opacity", 1);
+          const rows = runs.map((r) => {
+            const c = curves[r.run_id], i = c.epoch.indexOf(ep);
+            return `<span style="color:${paperColor(r.model)}">●</span> ${paperLabel(r)}: <b>${i >= 0 ? fmt3(c[state.curveMetric][i]) : "stopped"}</b>`;
+          });
+          showTip(e, `${(DATA.names.bands || {})[bands] || bands} input · epoch ${ep}<br>${rows.join("<br>")}`);
+        })
+        .on("mouseleave", () => { hover.attr("opacity", 0); hideTip(); });
+      return { bands, runs, svg, grid, gx, gy, yTitle, linesG, dotsG, legendG };
+    }) : [];
+
+    function drawCurves() {
+      const metric = state.curveMetric;
+      // shared y-limits with a 0.02 margin, like convergence_limits() in make_results.py
+      const values = DATA.runs.filter((r) => curves[r.run_id]).flatMap((r) => curves[r.run_id][metric]);
+      y.domain([Math.max(0, d3.min(values) - 0.02), Math.min(1, d3.max(values) + 0.02)]);
+      document.getElementById("eu-curve-title").textContent =
+        `Validation ${metric === "val_macro_f1" ? "macro-F1" : "accuracy"} per epoch (Fig. 2 of the paper)`;
+      panels.forEach((p) => {
+        const t = p.svg.transition().duration(600);
+        p.gx.call(d3.axisBottom(x).tickValues(d3.range(2, maxEpoch + 1, 2)).tickSizeOuter(0));
+        p.gy.transition(t).call(d3.axisLeft(y).ticks(8).tickFormat(d3.format(".2f")).tickSizeOuter(0));
+        const gl = [...y.ticks(8).map((v) => ({ k: "y" + v, x1: pm.l, x2: PW - pm.r, y1: y(v), y2: y(v) })),
+          ...d3.range(2, maxEpoch + 1, 2).map((v) => ({ k: "x" + v, x1: x(v), x2: x(v), y1: pm.t, y2: PH - pm.b }))];
+        p.grid.selectAll("line").data(gl, (d) => d.k).join("line").attr("stroke", "#B0B0B0").attr("stroke-opacity", 0.3)
+          .attr("x1", (d) => d.x1).attr("x2", (d) => d.x2).attr("y1", (d) => d.y1).attr("y2", (d) => d.y2);
+        p.yTitle.text(metric === "val_macro_f1" ? "Validation macro-F1" : "Validation accuracy");
+        const line = d3.line().x((d) => x(d[0])).y((d) => y(d[1]));
+        const pts = (r) => curves[r.run_id].epoch.map((ep, i) => [ep, curves[r.run_id][metric][i], r]);
+        p.linesG.selectAll("path").data(p.runs, (r) => r.run_id).join("path").attr("fill", "none").attr("stroke-width", 1.7)
+          .attr("stroke", (r) => paperColor(r.model)).attr("stroke-dasharray", (r) => (r.init === "imagenet" ? null : "6 4"))
+          .transition(t).attr("d", (r) => line(pts(r)));
+        p.dotsG.selectAll("circle").data(p.runs.flatMap(pts), (d) => d[2].run_id + ":" + d[0]).join("circle").attr("r", 2.6)
+          .attr("fill", (d) => paperColor(d[2].model))
+          .transition(t).attr("cx", (d) => x(d[0])).attr("cy", (d) => y(d[1]));
+        // legend inside, lower right, with a frame (matplotlib loc="lower right", frameon=True)
+        const lh = 17, lw = 198;
+        const lx = PW - pm.r - lw - 6, ly = PH - pm.b - p.runs.length * lh - 14;
+        p.legendG.selectAll("*").remove();
+        p.legendG.append("rect").attr("x", lx).attr("y", ly).attr("width", lw).attr("height", p.runs.length * lh + 8)
+          .attr("rx", 3).attr("fill", "#FFFFFF").attr("fill-opacity", 0.85).attr("stroke", "#D0D0D0");
+        p.runs.forEach((r, i) => {
+          const yy = ly + 12 + i * lh;
+          p.legendG.append("line").attr("x1", lx + 8).attr("x2", lx + 30).attr("y1", yy).attr("y2", yy)
+            .attr("stroke", paperColor(r.model)).attr("stroke-width", 1.7).attr("stroke-dasharray", r.init === "imagenet" ? null : "6 4");
+          p.legendG.append("circle").attr("cx", lx + 19).attr("cy", yy).attr("r", 2.6).attr("fill", paperColor(r.model));
+          p.legendG.append("text").attr("x", lx + 36).attr("y", yy + 4).attr("font-size", 11.5).attr("fill", PAPER.ink).text(paperLabel(r));
+        });
+      });
+    }
+
+    // --- test set dot plot (all runs), paper colors
+    const tW = 860, tRow = 30, tL = 250, tR = 70, tTop = 6;
+    const allVals = DATA.runs.flatMap((r) => [r.evaluations.eurosat.macro_f1, r.evaluations.eurosat.accuracy]);
+    const tx = d3.scaleLinear().domain([Math.floor(d3.min(allVals) * 100 - 0.5) / 100, 1]).range([tL, tW - tR]);
+    const tH = tTop + DATA.runs.length * tRow + 30;
+    const tsvg = d3.select("#eu-test").append("svg").attr("viewBox", `0 0 ${tW} ${tH}`)
+      .attr("role", "img").attr("aria-label", "Macro-F1 and accuracy of every run on the EuroSAT test set");
+    tsvg.append("g").attr("class", "axis").attr("transform", `translate(0,${tTop + DATA.runs.length * tRow + 2})`)
+      .call(d3.axisBottom(tx).ticks(6).tickFormat(d3.format(".3f")).tickSizeOuter(0));
+    const trow = tsvg.selectAll("g.trow").data(DATA.runs).join("g").attr("class", "trow clickable")
+      .attr("transform", (d, i) => `translate(0,${tTop + i * tRow})`).on("click", (e, d) => setState({ run: d.run_id, cell: null }));
+    trow.append("rect").attr("class", "hl").attr("width", tW).attr("height", tRow - 2).attr("rx", 8);
+    trow.append("text").attr("x", 12).attr("y", tRow / 2 + 4).attr("font-size", 13).text((d) => (d.run_id === selected ? "★ " : "") + d.label);
+    trow.append("line").attr("x1", tL).attr("x2", tW - tR).attr("y1", tRow / 2).attr("y2", tRow / 2).attr("stroke", "#EEF1F6");
+    trow.append("circle").attr("cx", (d) => tx(d.evaluations.eurosat.accuracy)).attr("cy", tRow / 2).attr("r", 6)
+      .attr("fill", "#fff").attr("stroke", (d) => paperColor(d.model)).attr("stroke-width", 2);
+    trow.append("circle").attr("cx", (d) => tx(d.evaluations.eurosat.macro_f1)).attr("cy", tRow / 2).attr("r", 5.5)
+      .attr("fill", (d) => paperColor(d.model));
+    trow.append("text").attr("x", tW - tR + 12).attr("y", tRow / 2 + 4).attr("font-size", 12.5).attr("font-family", "IBM Plex Mono")
+      .text((d) => fmt3(d.evaluations.eurosat.macro_f1));
+    trow.on("mousemove", (e, d) => showTip(e, `${d.label}<br>macro-F1 <b>${fmt3(d.evaluations.eurosat.macro_f1)}</b> · accuracy <b>${fmt3(d.evaluations.eurosat.accuracy)}</b>` +
+      (d.summary.epochs_to_95 ? `<br>95 % of best validation macro-F1 at epoch ${d.summary.epochs_to_95}` : ""))).on("mouseleave", hideTip);
+
+    let lastKey = null;
+    renderers.eurosat = function () {
+      updateMetric(state.curveMetric);
+      trow.select("rect.hl").attr("fill", (d) => (d.run_id === state.run ? "#EDF2F9" : "transparent"));
+      trow.select("text").attr("font-weight", (d) => (d.run_id === state.run ? 600 : 400));
+      if (curves && state.curveMetric !== lastKey) { lastKey = state.curveMetric; drawCurves(); }
+    };
+  })();
+
+  // ================================================================== demo 4 · CNN vs. ViT and cost
+  // Same colors and markers as the presentation's "CNN vs. ViT, and what each one costs" slide.
+  (function demoCost() {
+    const root = document.getElementById("demo-cost");
+    const XS = [
+      { value: "patches_per_s", label: "Throughput", title: "Inference throughput (patches/s, EuroSAT test)", get: (s) => s.patches_per_s, fmt: (v) => v.toFixed(0) },
+      { value: "params", label: "Parameters", title: "Parameters (millions)", get: (s) => s.params / 1e6, fmt: (v) => v.toFixed(1) },
+      { value: "time_per_epoch_s", label: "Time per epoch", title: "Training time per EuroSAT epoch (s)", get: (s) => s.time_per_epoch_s, fmt: (v) => v.toFixed(0) },
+      { value: "peak_mem_mb", label: "Peak memory", title: "Peak training memory (GB)", get: (s) => s.peak_mem_mb / 1024, fmt: (v) => v.toFixed(2) },
+    ];
+    const YS = [
+      { value: "ags_last_block", label: "Ags · last_block", title: "Aguascalientes macro-F1 after last_block" },
+      { value: "ags_head", label: "Ags · head", title: "Aguascalientes macro-F1 after head" },
+      { value: "ags_zero_shot", label: "Ags · zero-shot", title: "Aguascalientes macro-F1, zero-shot" },
+      { value: "eurosat_macro_f1", label: "EuroSAT", title: "EuroSAT test macro-F1" },
+    ];
+    // marker per (bands, init), as in the slide: circle RGB·ImageNet, square 13 bands·ImageNet, star 13 bands·SSL4EO
+    const markerOf = (r) => (r.bands === "rgb" ? d3.symbolCircle : r.init === "imagenet" ? d3.symbolSquare : r.init === "ssl4eo" ? d3.symbolStar : d3.symbolDiamond);
+    const sizeOf = (r) => (r.init === "ssl4eo" ? 420 : 230);
+    const share = DATA.last_block_share || {};
+    const devices = (DATA.inputs && DATA.inputs.devices) || [];
+    const combos = [...new Set(DATA.runs.map((r) => r.bands + "|" + r.init))];
+    const comboLabel = (k) => { const [b, i] = k.split("|"); return `${nameOf("bands", b)} · ${(DATA.names.init || {})[i] || i}`; };
+    const icon = (sym, size, fill, stroke) => `<svg width="18" height="18" viewBox="-9 -9 18 18"><path d="${d3.symbol(sym, size)()}" fill="${fill}" stroke="${stroke}" stroke-width="1"/></svg>`;
+    root.innerHTML = `
+      <div class="demo-head">
+        <div class="rotulo">Demo 4 · RQ-a: architecture and cost</div>
+        <h2>CNN vs. ViT, and what each one costs</h2>
+        <p class="lead">Each point is one run, drawn as in the presentation. Choose the score on the vertical axis and a cost on the horizontal one.</p>
+      </div>
+      <div class="grid">
+        <div class="tarjeta panel" id="cost-panel"></div>
+        <div class="stack">
+          <div class="tarjeta"><h3 id="cost-title"></h3><div id="cost-scatter"></div>
+            <div class="legend">
+              ${MODELS.map((mm) => `<span>${icon(d3.symbolCircle, 110, slideColor(mm), slideColor(mm))}${nameOf("model", mm)}</span>`).join("")}
+              ${combos.map((k) => { const [b, i] = k.split("|"); const r = { bands: b, init: i }; return `<span>${icon(markerOf(r), r.init === "ssl4eo" ? 160 : 100, "#fff", SLIDE.ink)}${comboLabel(k)}</span>`; }).join("")}
+            </div>
+          </div>
+          <div class="tarjeta" id="cost-says"></div>
+          <div class="tarjeta"><h3>Cost of every run</h3><div style="overflow-x:auto"><table class="cost" id="cost-table"></table></div></div>
+        </div>
+      </div>`;
+    const panel = document.getElementById("cost-panel");
+    const yBox = el("div", { class: "control" });
+    yBox.appendChild(el("span", { class: "rotulo" }, "Vertical axis: score"));
+    const updateY = segmented(yBox, YS.map((o) => ({ value: o.value, label: o.label })), (v) => setState({ costY: v }));
+    panel.appendChild(yBox);
+    const xBox = el("div", { class: "control" });
+    xBox.appendChild(el("span", { class: "rotulo" }, "Horizontal axis: cost"));
+    const updateX = segmented(xBox, XS.map((o) => ({ value: o.value, label: o.label })), (v) => setState({ costX: v }));
+    panel.appendChild(xBox);
+    if (Object.keys(share).length) {
+      panel.appendChild(el("div", { class: "callout warm" },
+        "<b>Not a firm ranking:</b> one seed, and last_block trains " +
+        Object.entries(share).map(([mm, v]) => `${Math.round(v * 100)} % of ${nameOf("model", mm)}`).join(", ") + "."));
+    }
+    panel.appendChild(el("p", { class: "hint" }, `Costs were measured on one machine${devices.length ? ` (device: ${devices.join(", ")})` : ""}.`));
+
+    const W = 860, H = 460, m = { l: 66, r: 24, t: 14, b: 54 };
+    const svg = d3.select("#cost-scatter").append("svg").attr("viewBox", `0 0 ${W} ${H}`)
+      .attr("role", "img").attr("aria-label", "Score against cost for every run");
+    const x = d3.scaleLinear().range([m.l, W - m.r]), y = d3.scaleLinear().range([H - m.b, m.t]);
+    const grid = svg.append("g");
+    const gx = svg.append("g").attr("class", "axis slide").attr("transform", `translate(0,${H - m.b})`);
+    const gy = svg.append("g").attr("class", "axis slide").attr("transform", `translate(${m.l},0)`);
+    const xTitle = svg.append("text").attr("x", (m.l + W - m.r) / 2).attr("y", H - 10).attr("text-anchor", "middle").attr("font-size", 13).attr("fill", SLIDE.soft);
+    const yTitle = svg.append("text").attr("transform", `translate(16,${(H - m.b + m.t) / 2}) rotate(-90)`).attr("text-anchor", "middle").attr("font-size", 13).attr("fill", SLIDE.soft);
+    const pts = svg.append("g").selectAll("path").data(DATA.runs).join("path").attr("class", "clickable")
+      .attr("d", (r) => d3.symbol(markerOf(r), sizeOf(r))())
+      .attr("fill", (r) => slideColor(r.model)).attr("stroke", SLIDE.ink).attr("stroke-width", 1)
+      .on("click", (e, r) => setState({ run: r.run_id, cell: null }));
+    const ring = svg.append("circle").attr("r", 17).attr("fill", "none").attr("stroke", SLIDE.ink).attr("stroke-dasharray", "3 3").attr("pointer-events", "none");
+    const label = svg.append("text").attr("font-size", 12.5).attr("font-weight", 600).attr("fill", SLIDE.ink);
+
+    const table = d3.select("#cost-table");
+    const cols = [["Run", (r) => r.label], ["Params (M)", (r) => XS[1].fmt(XS[1].get(r.summary))], ["Time / epoch (s)", (r) => XS[2].fmt(XS[2].get(r.summary))],
+      ["Epochs", (r) => r.summary.epochs], ["Peak mem. (GB)", (r) => XS[3].fmt(XS[3].get(r.summary))], ["Patches/s", (r) => XS[0].fmt(XS[0].get(r.summary))]];
+    table.append("thead").append("tr").selectAll("th").data(cols).join("th").text((c) => c[0]);
+    const trs = table.append("tbody").selectAll("tr").data(DATA.runs).join("tr").attr("class", "clickable").on("click", (e, r) => setState({ run: r.run_id, cell: null }));
+    trs.selectAll("td").data((r) => cols.map((c) => c[1](r))).join("td").text((v) => v);
+
+    function best(runs, key) {
+      return runs.reduce((a, b) => (b.summary[key] > a.summary[key] ? b : a), runs[0]);
+    }
+
+    renderers.cost = function () {
+      updateX(state.costX);
+      updateY(state.costY);
+      const xo = XS.find((o) => o.value === state.costX), yo = YS.find((o) => o.value === state.costY);
+      const xv = DATA.runs.map((r) => xo.get(r.summary)), yv = DATA.runs.map((r) => r.summary[yo.value]);
+      const [x0, x1] = d3.extent(xv), [y0, y1] = d3.extent(yv);
+      x.domain([x0 - (x1 - x0) * 0.1 - 1e-9, x1 + (x1 - x0) * 0.1 + 1e-9]).nice();
+      y.domain([Math.max(0, y0 - (y1 - y0) * 0.25 - 0.005), Math.min(1, y1 + (y1 - y0) * 0.25 + 0.005)]).nice();
+      const t = svg.transition().duration(650);
+      gx.transition(t).call(d3.axisBottom(x).ticks(7).tickSizeOuter(0));
+      gy.transition(t).call(d3.axisLeft(y).ticks(8).tickFormat(d3.format(".2f")).tickSizeOuter(0));
+      const gl = [...y.ticks(8).map((v) => ({ k: "y" + v, x1: m.l, x2: W - m.r, y1: y(v), y2: y(v) })),
+        ...x.ticks(7).map((v) => ({ k: "x" + v, x1: x(v), x2: x(v), y1: m.t, y2: H - m.b }))];
+      grid.selectAll("line").data(gl, (d) => d.k).join("line").attr("stroke", SLIDE.grid)
+        .attr("x1", (d) => d.x1).attr("x2", (d) => d.x2).attr("y1", (d) => d.y1).attr("y2", (d) => d.y2);
+      xTitle.text(xo.title); yTitle.text(yo.title);
+      document.getElementById("cost-title").textContent = `${yo.title} vs. ${xo.title.charAt(0).toLowerCase() + xo.title.slice(1)}`;
+      pts.transition(t).attr("transform", (r) => `translate(${x(xo.get(r.summary))},${y(r.summary[yo.value])})`);
+      pts.on("mousemove", (e, r) => showTip(e, `${r.label}<br>${yo.title}: <b>${fmt3(r.summary[yo.value])}</b><br>${xo.title}: <b>${xo.fmt(xo.get(r.summary))}</b>`)).on("mouseleave", hideTip);
+      const sel = runsById.get(state.run);
+      const sx = x(xo.get(sel.summary)), sy = y(sel.summary[yo.value]);
+      ring.transition(t).attr("cx", sx).attr("cy", sy);
+      label.text(`${sel.label} · ${fmt3(sel.summary[yo.value])}`).attr("text-anchor", sx > W - 320 ? "end" : "start")
+        .transition(t).attr("x", sx > W - 320 ? sx - 22 : sx + 22).attr("y", sy + 4);
+      trs.classed("sel", (r) => r.run_id === state.run);
+      // what the chart says, recomputed from data.js for the chosen score
+      const lines = [];
+      const top = best(DATA.runs, yo.value);
+      lines.push(`Highest of all runs: <b>${top.label}</b>, ${fmt3(top.summary[yo.value])}.`);
+      combos.forEach((k) => {
+        const group = DATA.runs.filter((r) => r.bands + "|" + r.init === k);
+        if (group.length > 1) {
+          const g = best(group, yo.value);
+          lines.push(`Among the ${comboLabel(k)} runs: <b>${nameOf("model", g.model)}</b>, ${fmt3(g.summary[yo.value])}.`);
+        }
+      });
+      document.getElementById("cost-says").innerHTML = `<h3>${yo.title}: highest observed</h3>` +
+        lines.map((l) => `<p style="margin:0 0 6px">${l}</p>`).join("") +
+        '<p class="hint">One seed per run: differences of a few hundredths are not a firm ranking.</p>';
+    };
+  })();
+
+  // ================================================================== demo 2 · drop and recovery
   (function demoRuns() {
     const root = document.getElementById("demo-runs");
     const n = DATA.macro_f1_classes.length;
+    const S = DATA.runs.map((r) => r.summary);
+    const runLabel = (r) => `${nameOf("model", r.model)} · ${nameOf("bands", r.bands)} · ${(DATA.names.init || {})[r.init] || r.init}`;
     root.innerHTML = `
       <div class="demo-head">
-        <div class="rotulo">Demo 1 · RQ-b and RQ-c</div>
-        <h2>From Europe to Aguascalientes: how much is lost, how much comes back</h2>
-        <p class="lead">Each run was trained on EuroSAT, tested on Aguascalientes without local training (zero-shot),
-        and then fine-tuned on 561 local patches in two ways: <b>head</b> (classifier only) and <b>last_block</b>.</p>
+        <div class="rotulo">Demo 2 · RQ-b and RQ-c</div>
+        <h2>In Aguascalientes, all ${DATA.runs.length} runs fell</h2>
+        <p class="lead">Drop: <b style="color:${SLIDE.orangeText}">${fmt3(d3.min(S, (s) => s.drop))} – ${fmt3(d3.max(S, (s) => s.drop))}</b> of macro-F1 ·
+        last_block recovered at most <b style="color:${SLIDE.teal}">${fmt3(d3.max(S, (s) => s.recovery_last_block))}</b> of the drop; head at most ${fmt3(d3.max(S, (s) => s.recovery_head))}.</p>
+      </div>
+      <div class="tarjeta" style="margin-bottom:20px">
+        <div id="runs-all"></div>
+        <p class="hint" style="margin-top:4px">Macro-F1 over the same ${n} classes in both datasets. Click a row to open that run below.</p>
       </div>
       <div class="grid">
         <div class="tarjeta panel" id="runs-panel"></div>
@@ -188,22 +480,13 @@
             <h3 id="runs-title"></h3>
             <div id="runs-track"></div>
             <div class="legend">
-              <span><i class="sq" style="background:${COLOR.dropBand};border:1px solid #F1D2CE"></i>Drop: what was lost from EuroSAT to Aguascalientes</span>
-              <span><i class="sq" style="background:${COLOR.lastBlock}"></i>Recovered by fine-tuning</span>
+              <span><i class="sq" style="background:${SLIDE.dropBand};border:1px solid #EFD3AE"></i>Drop: what was lost from EuroSAT to Aguascalientes</span>
+              <span><i class="sq" style="background:${SLIDE.teal}"></i>Recovered by fine-tuning</span>
             </div>
           </div>
           <div class="tarjeta">
             <div class="tiles" id="runs-tiles"></div>
             <div class="formulas" id="runs-formulas" style="margin-top:14px" hidden></div>
-          </div>
-          <div class="tarjeta">
-            <h3>All runs at a glance <span class="hint" style="font-weight:400">· click a row to select it</span></h3>
-            <div id="runs-all"></div>
-            <div class="legend">
-              <span><i style="background:${COLOR.eurosat}"></i>EuroSAT test</span>
-              <span><i style="background:${COLOR.zeroShot}"></i>Aguascalientes zero-shot</span>
-              <span><i style="background:${COLOR.lastBlock}"></i>after last_block</span>
-            </div>
           </div>
         </div>
       </div>`;
@@ -223,32 +506,68 @@
       `Macro-F1 over the ${n} classes of the Aguascalientes test${riverRows.length ? ` (left out: ${riverRows.join("; ")})` : ""}. ` +
       "The EuroSAT value uses the same classes, so the drop compares like with like."));
 
-    // --- track chart: four bars on a shared 0–1 macro-F1 axis
+    // --- all runs: the presentation's dumbbell chart, click a row to select it
+    const aW = 1240, aLeft = 330, aRight = 40, aRow = 46, aTop = 46;
+    const ax = d3.scaleLinear().domain([0, 1.02]).range([aLeft, aW - aRight]);
+    const aH = aTop + DATA.runs.length * aRow + 44;
+    const asvg = d3.select("#runs-all").append("svg").attr("viewBox", `0 0 ${aW} ${aH}`)
+      .attr("role", "img").attr("aria-label", "EuroSAT, zero-shot and last_block macro-F1 for every run");
+    const legendItems = [["circle", SLIDE.gray, "EuroSAT test"], ["circle", SLIDE.orange, "Ags zero-shot"], ["diamond", SLIDE.teal, "Ags after last_block"]];
+    const lg = asvg.append("g").attr("transform", `translate(${(aLeft + aW - aRight) / 2 - 260},16)`);
+    legendItems.forEach(([shape, c, t], i) => {
+      const gx = i * 190;
+      lg.append("path").attr("transform", `translate(${gx},0)`).attr("d", d3.symbol(shape === "diamond" ? d3.symbolDiamond2 : d3.symbolCircle, 170)()).attr("fill", c);
+      lg.append("text").attr("x", gx + 16).attr("y", 5).attr("font-size", 15).attr("fill", SLIDE.ink).text(t);
+    });
+    asvg.append("g").selectAll("line").data(d3.range(0, 1.01, 0.2)).join("line")
+      .attr("x1", (d) => ax(d)).attr("x2", (d) => ax(d)).attr("y1", aTop - 6).attr("y2", aTop + DATA.runs.length * aRow).attr("stroke", SLIDE.grid);
+    asvg.append("g").attr("class", "axis slide big").attr("transform", `translate(0,${aTop + DATA.runs.length * aRow})`)
+      .call(d3.axisBottom(ax).tickValues(d3.range(0, 1.01, 0.2)).tickFormat(d3.format(".1f")).tickSizeOuter(0));
+    asvg.append("text").attr("x", (aLeft + aW - aRight) / 2).attr("y", aH - 4).attr("text-anchor", "middle").attr("font-size", 15).attr("fill", SLIDE.soft).text(`Macro-F1 (${n} classes)`);
+    const arow = asvg.selectAll("g.arow").data(DATA.runs).join("g").attr("class", "arow clickable")
+      .attr("transform", (d, i) => `translate(0,${aTop + i * aRow})`)
+      .on("click", (e, d) => setState({ run: d.run_id, cell: null }));
+    arow.append("rect").attr("class", "hl").attr("x", 0).attr("width", aW).attr("height", aRow - 4).attr("y", 2).attr("rx", 10);
+    arow.append("text").attr("x", aLeft - 14).attr("y", aRow / 2 + 5).attr("text-anchor", "end").attr("font-size", 16).attr("fill", SLIDE.ink)
+      .text((d) => (d.run_id === selected ? "★ " : "") + runLabel(d));
+    arow.append("line").attr("x1", (d) => ax(d.summary.ags_zero_shot)).attr("x2", (d) => ax(d.summary.eurosat_f1_macro_classes))
+      .attr("y1", aRow / 2).attr("y2", aRow / 2).attr("stroke", SLIDE.grid).attr("stroke-width", 3.5);
+    arow.append("line").attr("x1", (d) => ax(d.summary.ags_zero_shot)).attr("x2", (d) => ax(d.summary.ags_last_block))
+      .attr("y1", aRow / 2).attr("y2", aRow / 2).attr("stroke", SLIDE.teal).attr("stroke-width", 3.5);
+    const dot = (key, shape, c) => arow.append("path").attr("d", d3.symbol(shape, 200)())
+      .attr("transform", (d) => `translate(${ax(d.summary[key])},${aRow / 2})`).attr("fill", c)
+      .on("mousemove", (e, d) => showTip(e, `${d.label}<br>${key === "eurosat_f1_macro_classes" ? "EuroSAT test" : key === "ags_zero_shot" ? "Ags zero-shot" : "Ags after last_block"}: <b>${fmt3(d.summary[key])}</b>`))
+      .on("mouseleave", hideTip);
+    dot("eurosat_f1_macro_classes", d3.symbolCircle, SLIDE.gray);
+    dot("ags_zero_shot", d3.symbolCircle, SLIDE.orange);
+    dot("ags_last_block", d3.symbolDiamond2, SLIDE.teal);
+
+    // --- track chart for the selected run: four bars on a shared 0–1 macro-F1 axis
     const W = 860, rowH = 50, top = 46, left = 130, right = 190;
     const rows = [
-      { key: "eurosat", label: "EuroSAT test", color: COLOR.eurosat },
-      { key: "zero", label: "Zero-shot", color: COLOR.zeroShot },
-      { key: "head", label: "head", color: COLOR.head },
-      { key: "last", label: "last_block", color: COLOR.lastBlock },
+      { key: "eurosat", label: "EuroSAT test", color: SLIDE.gray },
+      { key: "zero", label: "Zero-shot", color: SLIDE.orange },
+      { key: "head", label: "head", color: SLIDE.tealLight },
+      { key: "last", label: "last_block", color: SLIDE.teal },
     ];
     const H = top + rows.length * rowH + 34;
     const x = d3.scaleLinear().domain([0, 1]).range([left, W - right]);
     const svg = d3.select("#runs-track").append("svg").attr("viewBox", `0 0 ${W} ${H}`)
       .attr("role", "img").attr("aria-label", "Macro-F1 on EuroSAT, zero-shot, after head and after last_block");
-    svg.append("g").attr("class", "axis").attr("transform", `translate(0,${top + rows.length * rowH + 4})`)
-      .call(d3.axisBottom(x).ticks(5).tickSizeOuter(0));
-    svg.append("g").selectAll("line").data(x.ticks(5)).join("line").attr("class", "gridline")
+    svg.append("g").selectAll("line").data(x.ticks(5)).join("line").attr("stroke", SLIDE.grid)
       .attr("x1", (d) => x(d)).attr("x2", (d) => x(d)).attr("y1", top - 6).attr("y2", top + rows.length * rowH);
-    const band = svg.append("rect").attr("y", top - 6).attr("height", rows.length * rowH + 6).attr("fill", COLOR.dropBand);
+    svg.append("g").attr("class", "axis slide").attr("transform", `translate(0,${top + rows.length * rowH + 4})`)
+      .call(d3.axisBottom(x).ticks(5).tickSizeOuter(0));
+    const band = svg.append("rect").attr("y", top - 6).attr("height", rows.length * rowH + 6).attr("fill", SLIDE.dropBand).attr("fill-opacity", 0.75);
     const bandLabel = svg.append("text").attr("y", top - 16).attr("text-anchor", "middle")
-      .attr("font-weight", 600).attr("fill", "#803128").attr("font-size", 14);
+      .attr("font-weight", 600).attr("fill", SLIDE.orangeText).attr("font-size", 14);
     const g = svg.selectAll("g.row").data(rows).join("g").attr("class", "row")
       .attr("transform", (d, i) => `translate(0,${top + i * rowH})`);
-    g.append("text").attr("x", left - 12).attr("y", rowH / 2 + 5).attr("text-anchor", "end").attr("font-size", 14).text((d) => d.label);
+    g.append("text").attr("x", left - 12).attr("y", rowH / 2 + 5).attr("text-anchor", "end").attr("font-size", 14).attr("fill", SLIDE.ink).text((d) => d.label);
     g.append("rect").attr("class", "base").attr("x", x(0)).attr("y", 12).attr("height", rowH - 24).attr("rx", 4);
     g.append("rect").attr("class", "gain").attr("y", 12).attr("height", rowH - 24).attr("rx", 4);
-    g.append("text").attr("class", "val mono").attr("y", rowH / 2 + 5).attr("font-size", 13.5).attr("font-family", "IBM Plex Mono");
-    g.append("text").attr("class", "note").attr("x", W - right + 66).attr("y", rowH / 2 + 5).attr("font-size", 12.5).attr("fill", "#5B6B85");
+    g.append("text").attr("class", "val mono").attr("y", rowH / 2 + 5).attr("font-size", 13.5).attr("font-family", "IBM Plex Mono").attr("fill", SLIDE.ink);
+    g.append("text").attr("class", "note").attr("x", W - right + 66).attr("y", rowH / 2 + 5).attr("font-size", 12.5).attr("fill", SLIDE.soft);
 
     function updateTrack(run) {
       const s = run.summary;
@@ -263,11 +582,11 @@
           if (d.key === "eurosat" || d.key === "zero") return x(v) - x(0);
           return x(Math.min(v, s.ags_zero_shot)) - x(0);
         })
-        .attr("fill", (d) => (d.key === "eurosat" || d.key === "zero" ? d.color : COLOR.base));
+        .attr("fill", (d) => (d.key === "eurosat" || d.key === "zero" ? d.color : "#E4E0D6"));
       g.select("rect.gain").transition(t)
         .attr("x", (d) => x(Math.min(values[d.key], s.ags_zero_shot)))
         .attr("width", (d) => (d.key === "head" || d.key === "last" ? Math.abs(x(values[d.key]) - x(s.ags_zero_shot)) : 0))
-        .attr("fill", (d) => (values[d.key] >= s.ags_zero_shot ? d.color : COLOR.zeroShot));
+        .attr("fill", (d) => (values[d.key] >= s.ags_zero_shot ? d.color : SLIDE.orange));
       g.select("text.val").transition(t).attr("x", (d) => x(values[d.key]) + 8);
       g.select("text.val").text((d) => fmt3(values[d.key]));
       g.select("text.note").text((d) => {
@@ -276,28 +595,6 @@
         return "";
       });
     }
-
-    // --- all runs: dumbbells, click to select
-    const aW = 860, aLeft = 250, aRight = 40, aRow = 34, aTop = 8;
-    const ax = d3.scaleLinear().domain([0, 1]).range([aLeft, aW - aRight]);
-    const aH = aTop + DATA.runs.length * aRow + 30;
-    const asvg = d3.select("#runs-all").append("svg").attr("viewBox", `0 0 ${aW} ${aH}`)
-      .attr("role", "img").attr("aria-label", "EuroSAT, zero-shot and last_block macro-F1 for every run");
-    asvg.append("g").attr("class", "axis").attr("transform", `translate(0,${aTop + DATA.runs.length * aRow + 2})`)
-      .call(d3.axisBottom(ax).ticks(5).tickSizeOuter(0));
-    const arow = asvg.selectAll("g.arow").data(DATA.runs).join("g").attr("class", "arow clickable")
-      .attr("transform", (d, i) => `translate(0,${aTop + i * aRow})`)
-      .on("click", (e, d) => setState({ run: d.run_id, cell: null }));
-    arow.append("rect").attr("class", "hl").attr("x", 0).attr("width", aW).attr("height", aRow - 2).attr("rx", 8);
-    arow.append("text").attr("x", 12).attr("y", aRow / 2 + 4).attr("font-size", 13)
-      .text((d) => (d.run_id === selected ? "★ " : "") + d.label);
-    arow.append("line").attr("x1", (d) => ax(d.summary.ags_zero_shot)).attr("x2", (d) => ax(d.summary.eurosat_f1_macro_classes))
-      .attr("y1", aRow / 2).attr("y2", aRow / 2).attr("stroke", "#E7B9B3").attr("stroke-width", 3);
-    [["eurosat_f1_macro_classes", COLOR.eurosat], ["ags_zero_shot", COLOR.zeroShot], ["ags_last_block", COLOR.lastBlock]].forEach(([k, c]) => {
-      arow.append("circle").attr("cx", (d) => ax(d.summary[k])).attr("cy", aRow / 2).attr("r", 6).attr("fill", c)
-        .on("mousemove", (e, d) => showTip(e, `${d.label}<br>${k.replace(/_/g, " ")}: <b>${fmt3(d.summary[k])}</b>`))
-        .on("mouseleave", hideTip);
-    });
 
     renderers.runs = function () {
       const run = runsById.get(state.run);
@@ -325,7 +622,7 @@
         `&nbsp;&nbsp;last_block: (${fmt3(s.ags_last_block)} − ${fmt3(s.ags_zero_shot)}) / ${fmt3(s.drop)} = <b>${fmt3(s.recovery_last_block)}</b><br>` +
         `<span class="name">1 would mean the fine-tuned model recovered everything it lost.</span>`;
       arow.select("rect.hl").attr("fill", (d) => (d.run_id === state.run ? "#EDF2F9" : "transparent"));
-      arow.select("text").attr("font-weight", (d) => (d.run_id === state.run ? 600 : 400));
+      arow.select("text").attr("font-weight", (d) => (d.run_id === state.run ? 700 : 400));
     };
   })();
 
@@ -334,7 +631,7 @@
     const root = document.getElementById("demo-confusion");
     root.innerHTML = `
       <div class="demo-head">
-        <div class="rotulo">Demo 2 · Where the errors go</div>
+        <div class="rotulo">Demo 3 · Where the errors go</div>
         <h2>Confusion matrix of any run, before and after fine-tuning</h2>
         <p class="lead">Rows are the true class and columns the predicted class. Switch between stages to see how the
         errors move: zero-shot, most Aguascalientes patches fall into one or two classes.</p>
@@ -361,7 +658,7 @@
     panel.appendChild(info);
 
     const K = DATA.classes.length, cell = 48, left = 200, top = 150, W = left + K * cell + 70, H = top + K * cell + 16;
-    const color = d3.scaleSequential(d3.interpolateRgbBasis(["#F4F7FB", "#B4C9E4", "#4777B4", "#213E63"])).domain([0, 1]);
+    const color = d3.scaleSequential(d3.interpolateBlues).domain([0, 1]); // same as cmap="Blues" in the slide figure
     const svg = d3.select("#conf-matrix").append("svg").attr("viewBox", `0 0 ${W} ${H}`)
       .attr("role", "img").attr("aria-label", "Confusion matrix: rows are true classes, columns predicted classes");
     svg.append("text").attr("x", left + (K * cell) / 2).attr("y", 14).attr("text-anchor", "middle").attr("font-size", 13).attr("fill", "#5B6B85").text("Predicted class →");
@@ -418,7 +715,7 @@
           if (state.view === "count") return v ? v : "";
           return v ? Math.round((100 * v) / rowSums[d.i]) : "";
         })
-        .attr("fill", (d) => (rowSums[d.i] && conf[d.i][d.j] / rowSums[d.i] > 0.5 ? "#FFFFFF" : "#1E2A45"));
+        .attr("fill", (d) => (rowSums[d.i] && conf[d.i][d.j] / rowSums[d.i] > 0.55 ? "#FFFFFF" : "#13232B"));
       cg.on("mousemove", (e, d) => showTip(e, `True <b>${pretty(DATA.classes[d.i])}</b> → predicted <b>${pretty(DATA.classes[d.j])}</b><br>` +
         `${conf[d.i][d.j]} of ${rowSums[d.i]} patches${rowSums[d.i] ? ` (${pct(conf[d.i][d.j] / rowSums[d.i])})` : ""}`)).on("mouseleave", hideTip);
       rowLabels.text((d) => pretty(d) + (!isEuroSAT && excludedClasses.includes(d) ? " *" : ""))
@@ -450,7 +747,7 @@
     const sp = DATA.split;
     root.innerHTML = `
       <div class="demo-head">
-        <div class="rotulo">Demo 3 · Why we split by blocks</div>
+        <div class="rotulo">Demo 5 · Why we split by blocks</div>
         <h2>Neighboring cells look alike, so they should not be split apart</h2>
         <p class="lead">Each square is one labeled 640 m cell of Aguascalientes. If a test cell has a fine-tune cell next to it,
         the model has practically seen it, and the test score looks better than it is.</p>
@@ -473,6 +770,7 @@
             <span><i class="sq" style="background:${COLOR.touching}"></i>Test cell touching a fine-tune cell</span>
             <span><i class="sq" style="background:#fff;border:1px solid #B9C4D4"></i>Block of ${sp.block_cells} × ${sp.block_cells} cells</span>
           </div>
+          ${window.HYDROSCOPE_BASEMAP ? '<p class="hint" style="margin-top:6px">Background: our April 2024 Sentinel-2 composite, true color, the same previews used for labeling. Contains modified Copernicus Sentinel-2 data (2024).</p>' : ""}
         </div>
       </div>`);
     const panel = document.getElementById("split-panel");
@@ -480,6 +778,11 @@
     modeBox.appendChild(el("span", { class: "rotulo" }, "How the cells are split"));
     const updateMode = segmented(modeBox, [{ value: "blocks", label: `Our split: ${sp.block_cells} × ${sp.block_cells} blocks` }, { value: "random", label: "Random cells" }], (v) => setState({ splitMode: v }));
     panel.appendChild(modeBox);
+    if (window.HYDROSCOPE_BASEMAP) {
+      const sw = el("label", { class: "switch" }, '<input type="checkbox" checked> Show the April 2024 composite');
+      sw.querySelector("input").addEventListener("change", (e) => setState({ basemap: e.target.checked }));
+      modeBox.appendChild(sw);
+    }
     const reshuffle = el("button", { class: "btn", type: "button" }, "Reshuffle the random split");
     reshuffle.addEventListener("click", () => setState({ splitMode: "random", seed: state.seed + 1 }));
     panel.appendChild(reshuffle);
@@ -492,31 +795,35 @@
       `With blocks, <b>${sp.test_touching_finetune}</b> test cells still touch a fine-tune cell across a block edge. ` +
       "The paper reports this as a limitation: the split has no buffer zone."));
 
-    // geometry
+    // geometry: the map covers the labeled cells and, if present, the background image
+    const BM = window.HYDROSCOPE_BASEMAP && window.HYDROSCOPE_BASEMAP.schema_version === 1 ? window.HYDROSCOPE_BASEMAP : null;
     const rows = sp.cells.map((c) => c[0]), cols = sp.cells.map((c) => c[1]);
-    const r0 = d3.min(rows), r1 = d3.max(rows), c0 = d3.min(cols), c1 = d3.max(cols);
+    let r0 = d3.min(rows), r1 = d3.max(rows) + 1, c0 = d3.min(cols), c1 = d3.max(cols) + 1; // r1, c1 exclusive
+    if (BM) {
+      r0 = Math.min(r0, BM.row0); c0 = Math.min(c0, BM.col0);
+      r1 = Math.max(r1, BM.row0 + BM.n_rows); c1 = Math.max(c1, BM.col0 + BM.n_cols);
+    }
     const size = 5.5, pad = 8;
-    const W = (c1 - c0 + 1) * size + 2 * pad, H = (r1 - r0 + 1) * size + 2 * pad;
+    const W = (c1 - c0) * size + 2 * pad, H = (r1 - r0) * size + 2 * pad;
+    const X = (col) => pad + (col - c0) * size, Y = (row) => pad + (row - r0) * size;
     const svg = d3.select("#split-map").append("svg").attr("viewBox", `0 0 ${W} ${H}`)
       .attr("role", "img").attr("aria-label", "Map of the labeled cells of Aguascalientes colored by split");
-    const bx0 = Math.floor(c0 / sp.block_cells), bx1 = Math.floor(c1 / sp.block_cells);
-    const by0 = Math.floor(r0 / sp.block_cells), by1 = Math.floor(r1 / sp.block_cells);
-    const grid = svg.append("g").attr("stroke", "#DCE3EC").attr("stroke-width", 0.6);
-    for (let b = bx0; b <= bx1 + 1; b++) {
-      const xx = pad + (b * sp.block_cells - c0) * size;
-      grid.append("line").attr("x1", xx).attr("x2", xx).attr("y1", pad).attr("y2", H - pad);
-    }
-    for (let b = by0; b <= by1 + 1; b++) {
-      const yy = pad + (b * sp.block_cells - r0) * size;
-      grid.append("line").attr("y1", yy).attr("y2", yy).attr("x1", pad).attr("x2", W - pad);
-    }
-    // One background square per block that holds labeled cells, colored by the block's split.
+    const image = BM ? svg.append("image").attr("href", BM.file).attr("x", X(BM.col0)).attr("y", Y(BM.row0))
+      .attr("width", BM.n_cols * size).attr("height", BM.n_rows * size).attr("preserveAspectRatio", "none") : null;
+    // One square per block that holds labeled cells, colored by the block's split.
     const blockSide = new Map();
     sp.cells.forEach((c) => blockSide.set(Math.floor(c[0] / sp.block_cells) + ":" + Math.floor(c[1] / sp.block_cells), c[2]));
     const blocks = [...blockSide.entries()].map(([k, side]) => ({ by: +k.split(":")[0], bx: +k.split(":")[1], side }));
-    const blockRects = svg.insert("g", "g").selectAll("rect").data(blocks).join("rect")
-      .attr("x", (d) => pad + (d.bx * sp.block_cells - c0) * size).attr("y", (d) => pad + (d.by * sp.block_cells - r0) * size)
+    const blockRects = svg.append("g").selectAll("rect").data(blocks).join("rect")
+      .attr("x", (d) => X(d.bx * sp.block_cells)).attr("y", (d) => Y(d.by * sp.block_cells))
       .attr("width", sp.block_cells * size).attr("height", sp.block_cells * size);
+    const grid = svg.append("g").attr("stroke-width", 0.6);
+    for (let b = Math.floor(c0 / sp.block_cells); b <= Math.ceil(c1 / sp.block_cells); b++) {
+      grid.append("line").attr("x1", X(b * sp.block_cells)).attr("x2", X(b * sp.block_cells)).attr("y1", pad).attr("y2", H - pad);
+    }
+    for (let b = Math.floor(r0 / sp.block_cells); b <= Math.ceil(r1 / sp.block_cells); b++) {
+      grid.append("line").attr("y1", Y(b * sp.block_cells)).attr("y2", Y(b * sp.block_cells)).attr("x1", pad).attr("x2", W - pad);
+    }
     const key = (r, c) => r * 100000 + c;
     const blockId = (r, c) => `b${String(Math.floor(r / sp.block_cells)).padStart(3, "0")}_${String(Math.floor(c / sp.block_cells)).padStart(3, "0")}`;
     const cellId = (r, c) => `r${String(r).padStart(4, "0")}_c${String(c).padStart(4, "0")}`;
@@ -548,12 +855,12 @@
       console.warn("touching count differs from data.js", d3.sum(ourTouching), sp.test_touching_finetune);
     }
     const rects = svg.append("g").selectAll("rect").data(sp.cells).join("rect")
-      .attr("x", (d) => pad + (d[1] - c0) * size + 0.4).attr("y", (d) => pad + (d[0] - r0) * size + 0.4)
+      .attr("x", (d) => X(d[1]) + 0.4).attr("y", (d) => Y(d[0]) + 0.4)
       .attr("width", size - 0.8).attr("height", size - 0.8);
 
     let lastSplitKey = null;
     renderers.split = function () {
-      const splitKey = state.splitMode + ":" + state.seed;
+      const splitKey = state.splitMode + ":" + state.seed + ":" + state.basemap;
       if (splitKey === lastSplitKey) return;
       lastSplitKey = splitKey;
       updateMode(state.splitMode);
@@ -564,8 +871,19 @@
       counter.innerHTML = '<span class="rotulo">Test cells touching a fine-tune cell</span>' +
         `<div class="big" style="color:${state.splitMode === "blocks" ? "#0B6574" : "#803128"}">${n}</div>` +
         `<span class="hint">of ${sp.n_test} test cells (${pct(n / sp.n_test)})${state.splitMode === "random" ? ` · random split #${state.seed}` : ""}</span>`;
+      const onImage = Boolean(image) && state.basemap;
+      if (image) image.transition().duration(400).attr("opacity", onImage ? 1 : 0);
       blockRects.transition().duration(500)
-        .attr("fill", (d) => (state.splitMode === "blocks" ? (d.side === "test" ? "#FAF1E1" : "#E6EEF8") : "#F6F8FB"));
+        .attr("fill", (d) => {
+          if (state.splitMode !== "blocks") return onImage ? "none" : "#F6F8FB";
+          if (onImage) return d.side === "test" ? COLOR.test : COLOR.finetune;
+          return d.side === "test" ? "#FAF1E1" : "#E6EEF8";
+        })
+        .attr("fill-opacity", onImage ? 0.3 : 1)
+        .attr("stroke", onImage && state.splitMode === "blocks" ? (d) => (d.side === "test" ? COLOR.test : COLOR.finetune) : "none")
+        .attr("stroke-width", 0.8);
+      grid.attr("stroke", onImage ? "rgba(255,255,255,0.45)" : "#DCE3EC");
+      rects.attr("stroke", onImage ? "#FFFFFF" : "none").attr("stroke-width", 0.7);
       rects.transition().duration(500).delay((d) => (d[0] - r0) * 3)
         .attr("fill", (d, i) => (touching[i] ? COLOR.touching : sides[i] === "test" ? COLOR.test : COLOR.finetune));
       rects.on("mousemove", (e, d) => {
@@ -586,7 +904,7 @@
       last_block: ["What last_block fine-tunes", "In last_block mode the last block and the classifier learn; everything else stays frozen. The share of the model this represents differs a lot between architectures."],
       class_weights: ["Class-weighted loss", "The fine-tune split is imbalanced, so the cross-entropy gives each class the weight n / (K · n_c): rare classes count more."],
       freeze: ["Freezing everything else", "All parameters are frozen first; then only the modules of the chosen mode (head or last_block) are unfrozen."],
-      drop_recovery: ["Drop and recovery", "The two numbers behind RQ-b and RQ-c, exactly as the paper defines them. Demo 1 shows them for every run."],
+      drop_recovery: ["Drop and recovery", "The two numbers behind RQ-b and RQ-c, exactly as the paper defines them. Demo 2 shows them for every run."],
       selection: ["Selection rule, fixed in advance", "The best Aguascalientes macro-F1 after last_block wins; runs within 0.01 of the top go to the higher throughput."],
     };
     const steps = [];
@@ -597,7 +915,7 @@
     });
     root.innerHTML = `
       <div class="demo-head">
-        <div class="rotulo">Demo 4 · The code behind the results</div>
+        <div class="rotulo">Demo 6 · The code behind the results</div>
         <h2>From the satellite to the selected model, in ${steps.length} functions</h2>
         <p class="lead">Each step shows the real function from the repository, read when <code>data.js</code> was generated,
         with a link to the same lines on GitHub.</p>
@@ -620,7 +938,7 @@
         const items = Object.entries(DATA.last_block_share);
         return '<div class="control" style="margin:4px 0 14px"><span class="rotulo">Share of parameters trained in last_block</span>' +
           items.map(([m, v]) => `<div style="display:flex;align-items:center;gap:10px"><span style="width:130px">${nameOf("model", m)}</span>` +
-            `<span style="flex:1;background:#EEF1F6;border-radius:6px;height:14px;overflow:hidden"><span style="display:block;height:100%;width:${(v * 100).toFixed(1)}%;background:${COLOR.lastBlock}"></span></span>` +
+            `<span style="flex:1;background:#EEF1F6;border-radius:6px;height:14px;overflow:hidden"><span style="display:block;height:100%;width:${(v * 100).toFixed(1)}%;background:${SLIDE.teal}"></span></span>` +
             `<span class="mono" style="width:56px;text-align:right">${Math.round(v * 100)} %</span></div>`).join("") + "</div>";
       }
       if (step === "first_layer") {
@@ -642,7 +960,7 @@
           '<div class="mono" id="g-out" style="margin-top:6px"></div></div>';
       }
       if (step === "drop_recovery") {
-        return '<p style="margin:4px 0 14px"><button class="btn" type="button" id="go-demo1">Open demo 1 with these formulas</button></p>';
+        return '<p style="margin:4px 0 14px"><button class="btn" type="button" id="go-demo1">Open demo 2 with these formulas</button></p>';
       }
       return "";
     }
@@ -686,5 +1004,5 @@
   })();
 
   // ------------------------------------------------------------------ start
-  showTab(location.hash.slice(1) || "runs");
+  showTab(location.hash.slice(1) || "eurosat");
 })();

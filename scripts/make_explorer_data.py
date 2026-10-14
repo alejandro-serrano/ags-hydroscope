@@ -1,7 +1,8 @@
 """Write docs/explorer/data.js, the data of the Aguascalientes Hydroscope Explorer page.
 
 Run: python scripts/make_explorer_data.py   (scripts/make_results.py also calls it at the end)
-Every number comes from experiments/results/*.json through the functions of make_results.py;
+Every number comes from experiments/results/*.json through the functions of make_results.py,
+from the EuroSAT training logs (experiments/logs/<run_id>.csv) and from configs/base.yaml;
 nothing is typed by hand. data/ags/labels.csv is optional: without it "split" is null.
 The output is deterministic: the same inputs give the same file, byte by byte (no date).
 The page loads the file with <script src="data.js"> and reads window.HYDROSCOPE_DATA.
@@ -19,6 +20,7 @@ from make_results import (
     AGS_LABELS,
     BANDS_NAMES,
     BANDS_ORDER,
+    BASE_CONFIG,
     INIT_NAMES,
     INIT_ORDER,
     LOGS_DIR,
@@ -36,6 +38,7 @@ from make_results import (
     select_model,
 )
 
+from hydroscope.config import load_config
 from hydroscope.data.labels import SKIP, load_labels
 from hydroscope.geo import gee_export, grid
 from hydroscope.models import factory
@@ -56,6 +59,9 @@ EVALUATION_KEYS = {
     "head": "head",
     "last_block": "last_block",
 }
+
+# Columns of the EuroSAT training logs copied to "curves" (the lr column is left out).
+CURVE_COLUMNS = ["epoch", "train_loss", "val_loss", "val_macro_f1", "val_accuracy", "seconds"]
 
 # Neighbours of a cell as (row, col) offsets.
 NEIGHBOR_OFFSETS = {
@@ -106,19 +112,22 @@ def plain_dict(values: dict) -> dict:
 
 
 def inputs_section(results: dict[str, dict]) -> dict:
-    """How many result JSONs were read, their protocol versions and their code commits."""
+    """How many result JSONs were read, their protocol versions, code commits and devices."""
     versions = set()
     commits = set()
+    devices = set()
     n_evaluations = 0
     for record in results.values():
         for result in record.values():
             n_evaluations += 1
             versions.add(result["protocol_version"])
             commits.add(result["git_commit"][:7])
+            devices.add(result["device"])
     return {
         "n_evaluations": n_evaluations,
         "protocol_versions": sorted(versions),
         "result_commits": sorted(commits),
+        "devices": sorted(devices),
     }
 
 
@@ -162,6 +171,40 @@ def selection_section(summary: pd.DataFrame) -> dict:
     return {
         "all": plain_dict(select_model(summary, all_runs)),
         "imagenet": plain_dict(select_model(summary, imagenet_runs)),
+    }
+
+
+# ---------------------------------------------------------------- training
+
+
+def curves_section(run_ids: list[str], logs_dir: Path) -> dict:
+    """EuroSAT training log of every run, one list per column. Runs without a log are left out."""
+    curves = {}
+    for run_id in run_ids:
+        path = logs_dir / f"{run_id}.csv"  # the *_ft-*.csv fine-tuning logs are not read
+        if not path.exists():
+            print(f"note: {path.name} not found; {run_id} has no curves")
+            continue
+        # round_trip: the floats are read exactly as written in the CSV.
+        log = pd.read_csv(path, float_precision="round_trip")
+        curve = {"epoch": [int(epoch) for epoch in log["epoch"]]}
+        for column in CURVE_COLUMNS[1:]:
+            curve[column] = [plain_value(float(value)) for value in log[column]]
+        curves[run_id] = curve
+    return curves
+
+
+def training_section(config_path: Path) -> dict:
+    """Shared training settings of the protocol, read from configs/base.yaml."""
+    cfg = load_config(config_path)
+    return {
+        "max_epochs": cfg["schedule"]["max_epochs"],
+        "patience": cfg["early_stopping"]["patience"],
+        "monitor": cfg["early_stopping"]["monitor"],
+        "warmup_epochs": cfg["schedule"]["warmup_epochs"],
+        "lr": cfg["optim"]["lr"],
+        "batch_size": cfg["optim"]["batch_size"],
+        "finetune_epochs": cfg["finetune"]["epochs"],
     }
 
 
@@ -287,6 +330,8 @@ def build_explorer_data(labels_path: Path = AGS_LABELS) -> dict:
         "last_block_share": plain_dict(last_block_shares()),
         "split": split_section(labels_path, ags_test_size(results)),
         "code": code_section(),
+        "curves": curves_section(list(results), LOGS_DIR),
+        "training": training_section(BASE_CONFIG),
     }
 
 

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from hydroscope.config import load_config
+
 ROOT = Path(__file__).resolve().parents[1]
 # make_explorer_data imports make_results, so the scripts folder must be importable.
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -57,3 +59,18 @@ def test_data_js_starts_with_comment_and_holds_valid_json(tmp_path):
     data = json.loads(lines[1].removeprefix(med.PREFIX).removesuffix(";"))
     assert data["schema_version"] == 1
     assert data["split"] is None
+
+
+def test_curves_have_one_point_per_trained_epoch(tmp_path):
+    data = med.build_explorer_data(tmp_path / "labels.csv")
+    for run in data["runs"]:
+        curve = data["curves"][run["run_id"]]
+        assert len(curve["epoch"]) == run["summary"]["epochs"]
+        assert len(curve["val_macro_f1"]) == run["summary"]["epochs"]
+
+
+def test_training_settings_come_from_base_yaml():
+    cfg = load_config(ROOT / "configs" / "base.yaml")
+    training = med.training_section(ROOT / "configs" / "base.yaml")
+    assert training["max_epochs"] == cfg["schedule"]["max_epochs"]
+    assert training["patience"] == cfg["early_stopping"]["patience"]

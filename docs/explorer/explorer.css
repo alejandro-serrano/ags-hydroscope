@@ -156,10 +156,10 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 17px; margin
 .tile { border: 1px solid var(--borde); border-radius: var(--r-md); padding: 12px 14px; background: #FFFFFF; }
 .tile .v { font-family: var(--font-mono); font-weight: 600; font-size: 22px; font-variant-numeric: tabular-nums; }
 .tile .k { font-size: 12.5px; color: var(--tinta-suave); }
-.tile.drop { background: var(--coral-fondo); border-color: #F1D2CE; }
-.tile.drop .v { color: var(--coral-texto); }
-.tile.rec { background: #E8F3F5; border-color: #C5E1E6; }
-.tile.rec .v { color: #0B6574; }
+.tile.drop { background: #FBEEDD; border-color: #EFD3AE; }
+.tile.drop .v { color: #8A4B0B; }
+.tile.rec { background: #E3F0F1; border-color: #C5E1E6; }
+.tile.rec .v { color: #155E69; }
 
 .formulas {
   background: var(--fondo-suave); border: 1px solid var(--borde); border-radius: var(--r-md);
@@ -234,3 +234,20 @@ footer { max-width: 1360px; margin: 24px auto 40px; padding: 0 28px; color: var(
   footer { padding: 0 16px; }
   h2 { font-size: 23px; }
 }
+
+/* ---------- cost table ---------- */
+table.cost { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.cost th { text-align: right; font-weight: 600; color: var(--tinta-suave); font-size: 12.5px; padding: 8px 10px; border-bottom: 2px solid var(--tinta); white-space: nowrap; }
+table.cost td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--borde); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+table.cost th:first-child, table.cost td:first-child { text-align: left; font-family: var(--font-body); }
+table.cost tr.sel td { background: #EDF2F9; font-weight: 600; }
+table.cost tbody tr:hover td { background: var(--fondo-suave); }
+
+/* ---------- chart styles that follow the original figures ---------- */
+.panels { display: flex; flex-wrap: wrap; gap: 8px; }
+.panels svg { flex: 1 1 380px; min-width: 0; }
+svg .axis.paper text { fill: #222222; font-size: 11.5px; }
+svg .axis.paper path, svg .axis.paper line { stroke: #777777; }
+svg .axis.slide text { fill: #4A5560; font-size: 12.5px; }
+svg .axis.slide.big text { font-size: 15px; }
+svg .axis.slide path, svg .axis.slide line { stroke: #D8D1C2; }
