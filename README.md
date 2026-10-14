@@ -12,6 +12,12 @@ fine-tuning wins back.
 Every table and every number of the study comes from the result files committed here, so
 you can check them without training anything.
 
+To explore the results without running anything, open the
+[Hydroscope Aguascalientes Explorer](docs/explorer/) (`docs/explorer/index.html`, works offline)
+or read the [walkthrough notebook](notebooks/hydroscope_walkthrough.ipynb), which GitHub shows
+with its outputs. Both are optional companions to the paper; see
+[Explore the results interactively](#explore-the-results-interactively).
+
 [![CI](https://github.com/alejandro-serrano/ags-hydroscope/actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
 
 ---
@@ -41,6 +47,8 @@ experiments/      result JSONs and training logs (script output only)
 scripts/          tables, figures, release packaging and download
 paper/            LaTeX source of the IEEE paper, its tables and figures
 docs/             protocol, contracts, compute, data card, model card, code style
+docs/explorer/    Hydroscope Aguascalientes Explorer (interactive page, optional)
+notebooks/        walkthrough notebook of the results (optional)
 ```
 
 The code follows the style of the course notebooks ([docs/code_style.md](docs/code_style.md)):
@@ -178,7 +186,8 @@ Aguascalientes composite, which comes from Earth Engine.
 
 ## Explore the results interactively
 
-[docs/explorer/](docs/explorer/) is an optional, interactive companion to the paper: training
+The **Hydroscope Aguascalientes Explorer** ([docs/explorer/](docs/explorer/)) is an optional,
+interactive companion to the paper: training
 curves and EuroSAT results, drop and recovery per run, confusion matrices, accuracy against
 cost for the CNNs and the ViT, the spatial split on the map grid and a short tour of the code.
 Open `docs/explorer/index.html` with a double click; it needs no internet and no server. Its

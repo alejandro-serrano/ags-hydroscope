@@ -136,7 +136,13 @@
     return function update(current, isEnabled) {
       buttons.forEach(({ b, opt }) => {
         b.setAttribute("aria-pressed", String(opt.value === current));
-        b.disabled = isEnabled ? !isEnabled(opt.value) : false;
+        const enabled = isEnabled ? isEnabled(opt.value) : true;
+        b.disabled = !enabled;
+        // a disabled button says why in its tooltip; an enabled one has no title
+        if (enabled) b.removeAttribute("title");
+        else b.title = opt.value === "ssl4eo"
+          ? "SSL4EO-S12 weights exist only for ResNet-50 and ViT-S with 13 bands"
+          : "No run with this combination";
       });
     };
   }
