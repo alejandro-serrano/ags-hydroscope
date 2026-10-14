@@ -98,13 +98,17 @@ ResNet-50/RGB/ImageNet, macro-F1 after \texttt{last\_block} (\ResNetRgbLastBlock
 that after \texttt{head} (\ResNetRgbHead). Its Aguascalientes accuracy also fell, from
 \ResNetRgbZeroShotAcc{} zero-shot to \ResNetRgbLastBlockAcc{} after \texttt{last\_block}.
 
-The fall in accuracy was not limited to that run. In \AccuracyDropRuns{} of the \NumRuns{}
+The fall in accuracy was not limited to that run. Table~\ref{tab:ags_accuracy} gives the
+accuracy of every run, that is, the share of test patches classified correctly, zero-shot and
+after each mode. In \AccuracyDropRuns{} of the \NumRuns{}
 runs, \texttt{last\_block} lowered the Aguascalientes accuracy below its zero-shot value while
 it raised macro-F1. This trade-off is consistent with the class-weighted loss of
 Eq.~\eqref{eq:class_weights}, which shifts predictions away from the dominant
 HerbaceousVegetation class. Fig.~\ref{fig:ags_f1}(b) shows both sides of it: Forest and Pasture
 are no longer at zero in any run, and HerbaceousVegetation F1 is lower than zero-shot in every
 run.
+
+\input{tables/ags_accuracy}
 
 \subsection{Input bands and pre-trained weights}
 

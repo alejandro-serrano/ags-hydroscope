@@ -225,6 +225,8 @@ data/*
 !data/mock/
 checkpoints/
 outputs/
+# Release assets built by scripts/package_release.py (uploaded to GitHub Releases).
+dist/
 *.pt
 *.pth
 *.ckpt
@@ -248,6 +250,9 @@ CLAUDE.local.md
 
 *.pdf
 !paper/figures/*.pdf
+# Deliverables linked from the README.
+!paper/main.pdf
+!slides/final.pdf
 
 .DS_Store
 

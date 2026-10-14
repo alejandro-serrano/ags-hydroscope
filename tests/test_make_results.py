@@ -61,3 +61,28 @@ def test_macro_classes_must_match_across_results():
     different = {"r1": record(["A", "B"]), "r2": record(["A"])}
     with pytest.raises(ValueError):
         mr.macro_classes(different)
+
+
+def test_replace_between_markers_keeps_the_text_around_them():
+    text = "intro\n<!-- s -->\nold table\n<!-- e -->\nend\n"
+    new_text = mr.replace_between_markers(text, "<!-- s -->", "<!-- e -->", "new table")
+    assert new_text == "intro\n<!-- s -->\nnew table\n<!-- e -->\nend\n"
+
+
+def test_replace_between_markers_fails_without_markers():
+    with pytest.raises(ValueError):
+        mr.replace_between_markers("no markers here", "<!-- s -->", "<!-- e -->", "table")
+
+
+def test_ags_accuracy_table_has_three_decimals_per_mode():
+    summary = pd.DataFrame(
+        {
+            "label": ["run a"],
+            "ags_zero_shot_accuracy": [0.5],
+            "ags_head_accuracy": [0.25],
+            "ags_last_block_accuracy": [0.1234],
+        }
+    )
+    table = mr.ags_accuracy_table(summary)
+    assert list(table.columns) == ["Run", "Zero-shot", "Head", "Last block"]
+    assert list(table.iloc[0]) == ["run a", "0.500", "0.250", "0.123"]

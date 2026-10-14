@@ -1,9 +1,11 @@
 """Make the paper tables and figures from experiments/results/*.json and experiments/logs/*.csv.
 
-Run: python scripts/make_results.py
+Run: python scripts/make_results.py   (or: make tables figures)
 Every number comes from the JSON results or the CSV training logs; nothing is typed by hand.
 Outputs: paper/tables/*.tex, paper/tables/summary.csv, paper/tables/macros.tex (the numbers
-quoted in the text, read from summary.csv) and paper/figures/*.pdf.
+quoted in the text, read from summary.csv), paper/figures/*.pdf and the results table of
+README.md (between the results:start and results:end markers, also read from summary.csv).
+It runs offline with only the files in git; data/ags/labels.csv is optional (see main).
 macros.tex also holds two numbers that are not results: the per-band z-scores of the
 Aguascalientes composite, read from docs/data_ags_check.md (written by
 scripts/check_ags_raster.py), the share of parameters trained in last_block mode, counted
@@ -22,12 +24,13 @@ matplotlib.use("Agg")  # no window: we only save PDFs
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import timm
 from matplotlib.patches import Rectangle
 
 from hydroscope.config import load_config
 from hydroscope.data.eurosat import BAND_SETS
 from hydroscope.data.labels import SKIP, load_labels
-from hydroscope.models.factory import build_model, count_params, last_block_params
+from hydroscope.models.factory import TIMM_NAMES, count_params, last_block_params
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = ROOT / "experiments" / "results"
@@ -37,6 +40,9 @@ FIGURES_DIR = ROOT / "paper" / "figures"
 AGS_CHECK_REPORT = ROOT / "docs" / "data_ags_check.md"
 BASE_CONFIG = ROOT / "configs" / "base.yaml"
 AGS_LABELS = ROOT / "data" / "ags" / "labels.csv"
+README = ROOT / "README.md"
+README_START = "<!-- results:start -->"
+README_END = "<!-- results:end -->"
 
 MODEL_ORDER = ["resnet50", "efficientnet_b0", "vit_small"]
 BANDS_ORDER = ["rgb", "ms13"]
@@ -281,6 +287,16 @@ def cost_table(summary: pd.DataFrame) -> pd.DataFrame:
     return table
 
 
+def ags_accuracy_table(summary: pd.DataFrame) -> pd.DataFrame:
+    """Strings of the Aguascalientes accuracy table: zero-shot and after each fine-tuning mode."""
+    table = pd.DataFrame()
+    table["Run"] = summary["label"]
+    table["Zero-shot"] = [fmt3(v) for v in summary["ags_zero_shot_accuracy"]]
+    table["Head"] = [fmt3(v) for v in summary["ags_head_accuracy"]]
+    table["Last block"] = [fmt3(v) for v in summary["ags_last_block_accuracy"]]
+    return table
+
+
 def latex_table(
     table: pd.DataFrame,
     caption: str,
@@ -372,6 +388,30 @@ def write_tables(summary: pd.DataFrame, classes: list[str], n_classes_total: int
     return written
 
 
+def ags_test_size(results: dict[str, dict]) -> int:
+    """Number of Aguascalientes test patches, from the confusion matrix of the first result."""
+    first = next(iter(results.values()))
+    return int(np.array(first["ags"]["confusion"]).sum())
+
+
+def write_ags_accuracy(summary: pd.DataFrame, n_test: int, n_classes: int) -> Path:
+    """Write ags_accuracy.tex: accuracy over all test patches and classes, best in bold."""
+    caption = (
+        f"Accuracy on the Aguascalientes test split: the share of the {n_test} test patches "
+        f"(all {n_classes} classes) classified correctly, zero-shot and after each fine-tuning "
+        "mode. Best value per column in bold."
+    )
+    bold = {
+        "Zero-shot": best_row(summary["ags_zero_shot_accuracy"]),
+        "Head": best_row(summary["ags_head_accuracy"]),
+        "Last block": best_row(summary["ags_last_block_accuracy"]),
+    }
+    text = latex_table(ags_accuracy_table(summary), caption, "tab:ags_accuracy", "table", bold)
+    path = TABLES_DIR / "ags_accuracy.tex"
+    path.write_text(text)
+    return path
+
+
 # ---------------------------------------------------------------- macros
 
 
@@ -455,10 +495,14 @@ def band_macros(zscores: dict[str, float]) -> dict:
 
 
 def last_block_shares() -> dict[str, float]:
-    """Share of the parameters trained in last_block mode, per model (RGB, ImageNet weights)."""
+    """Share of the parameters trained in last_block mode, per model (RGB input).
+
+    Same model as build_model(name, "rgb") but without downloading the ImageNet weights:
+    counting parameters does not need them, and so the script runs offline.
+    """
     shares = {}
     for name in MODEL_ORDER:
-        model = build_model(name, "rgb")
+        model = timm.create_model(TIMM_NAMES[name], pretrained=False, num_classes=10)
         trained = sum(p.numel() for p in last_block_params(model, name))
         shares[name] = trained / count_params(model)
     return shares
@@ -486,6 +530,15 @@ def finetune_steps(config_path: Path, labels_path: Path) -> int:
     return cfg["finetune"]["epochs"] * steps_per_epoch
 
 
+def committed_macro(macros_path: Path, name: str) -> str:
+    """Value of one macro in an existing macros.tex, e.g. '90' for \\newcommand{\\Name}{90}."""
+    start = f"\\newcommand{{\\{name}}}{{"
+    for line in macros_path.read_text().splitlines():
+        if line.startswith(start):
+            return line.removeprefix(start).removesuffix("}")
+    raise ValueError(f"macro {name} not found in {macros_path}")
+
+
 def head_loss_falling_runs(summary: pd.DataFrame, logs_dir: Path) -> int:
     """Number of head runs whose training loss at the last epoch is below that at the middle one."""
     count = 0
@@ -511,6 +564,56 @@ def write_macros(macros: dict) -> Path:
     path = TABLES_DIR / "macros.tex"
     path.write_text("\n".join(lines) + "\n")
     return path
+
+
+# ---------------------------------------------------------------- README
+
+
+def readme_results(summary: pd.DataFrame, n_classes: int, selected_run: str) -> str:
+    """Markdown table of the README: one row per run, then the model chosen by the rule."""
+    lines = [
+        "| Model | Bands | Weights | EuroSAT macro-F1 | Ags zero-shot | Ags last_block |",
+        "| --- | --- | --- | ---: | ---: | ---: |",
+    ]
+    for _, row in summary.iterrows():
+        cells = [
+            MODEL_NAMES[row["model"]],
+            BANDS_NAMES[row["bands"]],
+            INIT_NAMES[row["init"]],
+            fmt3(row["eurosat_macro_f1"]),
+            fmt3(row["ags_zero_shot"]),
+            fmt3(row["ags_last_block"]),
+        ]
+        lines.append("| " + " | ".join(cells) + " |")
+    lines.append("")
+    lines.append(
+        f"Ags = Aguascalientes test split, macro-F1 over the {n_classes} classes with at least "
+        "10 test patches; last_block = after fine-tuning the last block and the head."
+    )
+    lines.append("")
+    selected = summary.set_index("run_id").loc[selected_run]
+    lines.append(
+        f"Model chosen by the selection rule (protocol section 8): **{selected['label']}**, "
+        f"Ags last_block macro-F1 {fmt3(selected['ags_last_block'])}."
+    )
+    return "\n".join(lines)
+
+
+def replace_between_markers(text: str, start: str, end: str, block: str) -> str:
+    """Put block between the start and end markers of text; the markers and the rest stay."""
+    if text.count(start) != 1 or text.count(end) != 1:
+        raise ValueError(f"expected one {start!r} and one {end!r} in the text")
+    before = text.split(start)[0]
+    after = text.split(end)[1]
+    return f"{before}{start}\n{block}\n{end}{after}"
+
+
+def write_readme_results(summary: pd.DataFrame, n_classes: int, selected_run: str) -> Path:
+    """Rewrite the results table of README.md."""
+    block = readme_results(summary, n_classes, selected_run)
+    text = replace_between_markers(README.read_text(), README_START, README_END, block)
+    README.write_text(text)
+    return README
 
 
 # ---------------------------------------------------------------- figures
@@ -780,9 +883,21 @@ def main() -> None:
     macros = paper_macros(summary_csv, selection_all, selection_imagenet)
     macros.update(band_macros(band_zscores(AGS_CHECK_REPORT)))
     macros.update(share_macros(last_block_shares()))
-    macros["FineTuneSteps"] = str(finetune_steps(BASE_CONFIG, AGS_LABELS))
+    if AGS_LABELS.exists():
+        macros["FineTuneSteps"] = str(finetune_steps(BASE_CONFIG, AGS_LABELS))
+    else:
+        # labels.csv is not in git (it comes with the release: make download). Without it we
+        # keep the value written by the last run that had it, instead of counting 0 patches.
+        print(f"note: {AGS_LABELS.relative_to(ROOT)} not found; FineTuneSteps kept from macros.tex")
+        macros["FineTuneSteps"] = committed_macro(TABLES_DIR / "macros.tex", "FineTuneSteps")
     macros["HeadLossFallingRuns"] = str(head_loss_falling_runs(summary_csv, LOGS_DIR))
     written.append(write_macros(macros))
+    # The accuracy table is also read from summary.csv.
+    print("Table: Aguascalientes accuracy (tab:ags_accuracy)")
+    print(ags_accuracy_table(summary_csv).to_string(index=False))
+    print()
+    written.append(write_ags_accuracy(summary_csv, ags_test_size(results), n_classes_total))
+    written.append(write_readme_results(summary_csv, len(classes), selection_all["winner"]))
 
     written += write_figures(results, summary, selection_all["winner"])
     print("Written files:")

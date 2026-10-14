@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{Accuracy on the Aguascalientes test split: the share of the 541 test patches (all 10 classes) classified correctly, zero-shot and after each fine-tuning mode. Best value per column in bold.}
+\label{tab:ags_accuracy}
+\begin{tabular}{lrrr}
+\toprule
+Run & Zero-shot & Head & Last block \\
+\midrule
+ResNet-50 / RGB / ImageNet & 0.542 & 0.562 & 0.287 \\
+ResNet-50 / MS13 / ImageNet & 0.484 & 0.484 & 0.440 \\
+ResNet-50 / MS13 / SSL4EO & \textbf{0.593} & \textbf{0.608} & \textbf{0.579} \\
+EfficientNet-B0 / RGB / ImageNet & 0.521 & 0.525 & 0.484 \\
+EfficientNet-B0 / MS13 / ImageNet & 0.353 & 0.357 & 0.405 \\
+ViT-S / RGB / ImageNet & 0.553 & 0.586 & 0.499 \\
+ViT-S / MS13 / ImageNet & 0.455 & 0.468 & 0.370 \\
+ViT-S / MS13 / SSL4EO & 0.536 & 0.545 & 0.499 \\
+\bottomrule
+\end{tabular}
+\end{table}

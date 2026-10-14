@@ -1,4 +1,4 @@
-.PHONY: env lint test smoke train eval tables figures paper
+.PHONY: env lint test smoke train eval results tables figures paper release download
 
 PYTHON ?= python
 SPLIT ?= ags_test
@@ -23,11 +23,19 @@ eval:
 	@test -n "$(CKPT)" || (echo "usage: make eval CKPT=checkpoints/<run>.pt [SPLIT=ags_test]" && exit 1)
 	$(PYTHON) -m hydroscope.training.evaluate --ckpt $(CKPT) --split $(SPLIT)
 
-tables:
-	$(PYTHON) scripts/make_tables.py
+# make_results.py writes the tables, the figures and the README results in one run.
+results:
+	$(PYTHON) scripts/make_results.py
 
-figures:
-	$(PYTHON) scripts/make_figures.py
+tables figures: results
 
 paper:
 	tectonic paper/main.tex
+
+# Build the release assets in dist/ (nothing is uploaded).
+release:
+	$(PYTHON) scripts/package_release.py
+
+# Download the release assets to checkpoints/ and data/ags/, checking their SHA256.
+download:
+	$(PYTHON) scripts/download_release.py
