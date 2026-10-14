@@ -162,6 +162,61 @@ The labels are manual and come with the release. To rebuild the Aguascalientes c
 grid and patches from Earth Engine, see `src/hydroscope/geo/` and
 [docs/data_card.md](docs/data_card.md).
 
+### Run the labeling notebook
+
+The Aguascalientes labels were made by hand with [labeling/label.ipynb](labeling/label.ipynb),
+following [labeling/GUIDE.md](labeling/GUIDE.md) (Spanish: [GUIDE.es.md](labeling/GUIDE.es.md)).
+You do not need it to reproduce the results, because the labels come with the release. Use it to
+review the labels or to label more cells.
+
+The notebook shows one 640 m cell at a time: its April 2024 preview and the same place on an Esri
+satellite map (this map needs internet). It reads three inputs that are neither in the repository
+nor in the release, because they are built from the Earth Engine composite:
+
+| Input | Built by |
+|---|---|
+| `data/ref/grid.gpkg` | `python -m hydroscope.geo.grid` |
+| `data/ags/cells.csv` and `data/ags/previews/` | `python -m hydroscope.geo.tiling` |
+
+To build them and open the notebook:
+
+1. Create the environment as in [Prerequisites](#prerequisites). You also need an Earth Engine
+   account with a cloud project. Sign in once with `earthengine authenticate`, and set the project
+   in every new terminal with `export EE_PROJECT=<your project>` (on Windows,
+   `set EE_PROJECT=<your project>`).
+2. Export the April 2024 composite:
+
+   ```bash
+   python -m hydroscope.geo.gee_export --save-boundary data/ref/ags_state.gpkg
+   python -m hydroscope.geo.gee_export
+   ```
+
+   The second command starts an export task to the `ags-hydroscope` folder of your Google Drive.
+   When the task finishes, download the `s2_ags_2024_04*.tif` files into `data/ags/raw/`.
+3. Check the raster, then build the grid, the patches and the previews:
+
+   ```bash
+   python scripts/check_ags_raster.py
+   python -m hydroscope.geo.grid --boundary data/ref/ags_state.gpkg
+   python -m hydroscope.geo.tiling
+   ```
+
+4. Open the notebook and choose **Run → Run All Cells**:
+
+   ```bash
+   jupyter lab labeling/label.ipynb
+   ```
+
+   Type your annotator id and press **Start**, then click a class for each cell (**skip** when
+   no class fits, **back** to return). Every click is saved at once in `data/ags/labels.csv`, and
+   **Start** resumes where you left off.
+5. When labeling is finished, split the labeled cells by blocks with
+   `python scripts/split_ags.py`.
+
+The notebook writes to `data/ags/labels.csv`. If you downloaded the release, copy that file
+first: it holds the labels and the split used in the paper. `split_ags.py` does not overwrite an
+existing split unless you add `--force`.
+
 ### If something fails
 
 **`conda` is not recognized.** On Windows, use the *Anaconda Prompt* instead of the regular
@@ -197,8 +252,31 @@ so the page always shows the current results. See
 
 [notebooks/hydroscope_walkthrough.ipynb](notebooks/hydroscope_walkthrough.ipynb) is the same tour as a
 notebook, also optional: it runs the repository code on the same data as the Explorer and checks that
-it reproduces the paper's numbers. GitHub shows it with its outputs; to run it and use its menus, open
-it with `jupyter lab notebooks/hydroscope_walkthrough.ipynb`.
+it reproduces the paper's numbers.
+
+### Run the walkthrough notebook
+
+GitHub shows the notebook with its saved outputs, so you can read it without running anything.
+To run it and use its menus:
+
+1. Create the environment as in [Prerequisites](#prerequisites).
+2. From the repository folder, start Jupyter:
+
+```bash
+   conda activate hydroscope
+   jupyter lab notebooks/hydroscope_walkthrough.ipynb
+```
+
+3. Choose **Run → Run All Cells**. It runs on a CPU in under a minute and downloads no model.
+
+Every section runs with only this repository except section 6 (spatial split), which needs
+`data/ags/labels.csv` from the [v1.0 release](https://github.com/alejandro-serrano/ags-hydroscope/releases/tag/v1.0).
+Without it, that section prints a note and the rest still runs. To get it, download
+`ags_labeled_v1.0.zip` from the release page and unzip it in the repository folder, or run
+`python scripts/download_release.py` (it also downloads the 24 trained models).
+
+In VS Code, open the notebook and pick the `hydroscope` environment as the kernel. The menus
+(`ipywidgets`) need a running kernel; GitHub and other static viewers show only the default figures.
 
 ---
 
