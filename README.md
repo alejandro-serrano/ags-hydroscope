@@ -244,7 +244,8 @@ Aguascalientes composite, which comes from Earth Engine.
 The **Hydroscope Aguascalientes Explorer** ([docs/explorer/](docs/explorer/)) is an optional,
 interactive companion to the paper: training
 curves and EuroSAT results, drop and recovery per run, confusion matrices, accuracy against
-cost for the CNNs and the ViT, the spatial split on the map grid and a short tour of the code.
+cost for the CNNs and the ViT, the spatial split on the map grid, sample patches of both datasets,
+Grad-CAM maps and a short tour of the code.
 Open `docs/explorer/index.html` with a double click; it needs no internet and no server. Its
 data (`docs/explorer/data.js`) is rewritten by `python scripts/make_results.py`,
 so the page always shows the current results. See

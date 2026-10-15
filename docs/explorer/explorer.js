@@ -1,8 +1,8 @@
 // Hydroscope Aguascalientes · Explorer
 // Every number shown here is read from window.HYDROSCOPE_DATA (data.js), which is written by
 // scripts/make_explorer_data.py from experiments/results/*.json. The page computes nothing that
-// the paper reports: it only formats those values (3 decimals, like the paper) and, in demo 3,
-// counts cells for the random split it draws itself.
+// the paper reports: it only formats those values (3 decimals, like the paper) and, in the spatial
+// split demo, counts cells for the random split it draws itself. Images (images.js) are optional.
 (function () {
   "use strict";
 
@@ -54,6 +54,11 @@
   if (DATA.schema_version !== SCHEMA_VERSION) {
     warnings.push(`data.js has schema ${DATA.schema_version}; this page expects ${SCHEMA_VERSION}.`);
   }
+  const IMG = window.HYDROSCOPE_IMAGES || null;
+  const IMG_SCHEMA_VERSION = 1;
+  if (IMG && IMG.schema_version !== IMG_SCHEMA_VERSION) {
+    warnings.push(`images.js has schema ${IMG.schema_version}; this page expects ${IMG_SCHEMA_VERSION}.`);
+  }
 
   const runsById = new Map(DATA.runs.map((r) => [r.run_id, r]));
   const presentIn = (order, key) => {
@@ -70,7 +75,7 @@
 
   // ------------------------------------------------------------------ state
   const state = {
-    tab: "eurosat", run: runsById.has(selected) ? selected : DATA.runs[0].run_id,
+    tab: "data", run: runsById.has(selected) ? selected : DATA.runs[0].run_id,
     stage: "zero_shot", view: "count", cell: null, formulas: false,
     splitMode: "blocks", seed: 1, step: 0, basemap: true,
     curveBands: "rgb", curveMetric: "val_macro_f1", costX: "patches_per_s", costY: "ags_last_block",
@@ -107,13 +112,16 @@
       "<code>scripts/make_explorer_data.py</code> from <code>experiments/results/*.json</code> " +
       "(it runs with <code>python scripts/make_results.py</code>). One seed per configuration. " +
       `Code: <a href="https://github.com/alejandro-serrano/ags-hydroscope">github.com/alejandro-serrano/ags-hydroscope</a>.` +
+      (IMG ? "<br>Image patches: <code>docs/explorer/images.js</code>, written by <code>scripts/make_explorer_images.py</code>. " +
+        "EuroSAT patches: Helber et al. (MIT license). Aguascalientes patches contain modified Copernicus Sentinel data (2024)." : "") +
       (warnings.length ? `<br><strong>Warning:</strong> ${warnings.join(" ")}` : "");
   })();
 
   // ------------------------------------------------------------------ tabs
-  const TABS = ["eurosat", "runs", "confusion", "cost", "split", "code"];
+  const TABS = ["data", "eurosat", "runs", "confusion", "cost", "gradcam", "split", "code"];
+  const demoLabel = (tab) => `Demo ${TABS.indexOf(tab) + 1}`;
   function showTab(tab) {
-    if (!TABS.includes(tab)) tab = "eurosat";
+    if (!TABS.includes(tab)) tab = TABS[0];
     document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === tab));
     TABS.forEach((t) => (document.getElementById("demo-" + t).hidden = t !== tab));
     if (location.hash.slice(1) !== tab) history.replaceState(null, "", "#" + tab);
@@ -197,10 +205,10 @@
     const paperLabel = (r) => `${nameOf("model", r.model)} / ${(DATA.names.init || {})[r.init] || r.init}`;
     root.innerHTML = `
       <div class="demo-head">
-        <div class="rotulo">Demo 1 · RQ-a</div>
+        <div class="rotulo">${demoLabel("eurosat")} · Training on EuroSAT</div>
         <h2>On EuroSAT, the ${DATA.runs.length} runs end up almost tied</h2>
         <p class="lead">Every run was trained on the same EuroSAT split with one shared protocol${tr.max_epochs ? `: up to ${tr.max_epochs} epochs, with early stopping (patience ${tr.patience}) on validation macro-F1` : ""}.
-        The curves are Fig. 2 of the paper; the dots below are the final score on the EuroSAT test set.</p>
+        The curves follow validation during training; the dots below are the final score on the EuroSAT test set.</p>
       </div>
       <div class="grid">
         <div class="tarjeta panel" id="eu-panel"></div>
@@ -218,10 +226,10 @@
       `<div class="v">${fmt3(d3.min(testF1))} – ${fmt3(d3.max(testF1))}</div><div class="k">EuroSAT test macro-F1, all ${DATA.runs.length} runs</div>`));
     const metricBox = el("div", { class: "control" });
     metricBox.appendChild(el("span", { class: "rotulo" }, "Validation metric"));
-    const updateMetric = segmented(metricBox, [{ value: "val_macro_f1", label: "Macro-F1 (as in the paper)" }, { value: "val_accuracy", label: "Accuracy" }], (v) => setState({ curveMetric: v }));
+    const updateMetric = segmented(metricBox, [{ value: "val_macro_f1", label: "Macro-F1" }, { value: "val_accuracy", label: "Accuracy" }], (v) => setState({ curveMetric: v }));
     panel.appendChild(metricBox);
     panel.appendChild(el("p", { class: "hint" },
-      "One panel per input, with the same vertical axis, as in the paper. Solid lines: ImageNet weights; dashed: SSL4EO-S12. " +
+      "One panel per input, with the same vertical axis. Solid lines: ImageNet weights; dashed: SSL4EO-S12. " +
       "A curve that ends before the last epoch was stopped by early stopping. Hover a panel to read every run at one epoch."));
 
     if (!curves) {
@@ -268,7 +276,7 @@
       const values = DATA.runs.filter((r) => curves[r.run_id]).flatMap((r) => curves[r.run_id][metric]);
       y.domain([Math.max(0, d3.min(values) - 0.02), Math.min(1, d3.max(values) + 0.02)]);
       document.getElementById("eu-curve-title").textContent =
-        `Validation ${metric === "val_macro_f1" ? "macro-F1" : "accuracy"} per epoch (Fig. 2 of the paper)`;
+        `Validation ${metric === "val_macro_f1" ? "macro-F1" : "accuracy"} per epoch`;
       panels.forEach((p) => {
         const t = p.svg.transition().duration(600);
         p.gx.call(d3.axisBottom(x).tickValues(d3.range(2, maxEpoch + 1, 2)).tickSizeOuter(0));
@@ -360,9 +368,9 @@
     const icon = (sym, size, fill, stroke) => `<svg width="18" height="18" viewBox="-9 -9 18 18"><path d="${d3.symbol(sym, size)()}" fill="${fill}" stroke="${stroke}" stroke-width="1"/></svg>`;
     root.innerHTML = `
       <div class="demo-head">
-        <div class="rotulo">Demo 4 · RQ-a: architecture and cost</div>
+        <div class="rotulo">${demoLabel("cost")} · Architecture and cost</div>
         <h2>CNN vs. ViT, and what each one costs</h2>
-        <p class="lead">Each point is one run, drawn as in the presentation. Choose the score on the vertical axis and a cost on the horizontal one.</p>
+        <p class="lead">Each point is one run. Choose the score on the vertical axis and a cost on the horizontal one.</p>
       </div>
       <div class="grid">
         <div class="tarjeta panel" id="cost-panel"></div>
@@ -470,7 +478,7 @@
     const runLabel = (r) => `${nameOf("model", r.model)} · ${nameOf("bands", r.bands)} · ${(DATA.names.init || {})[r.init] || r.init}`;
     root.innerHTML = `
       <div class="demo-head">
-        <div class="rotulo">Demo 2 · RQ-b and RQ-c</div>
+        <div class="rotulo">${demoLabel("runs")} · From EuroSAT to Aguascalientes</div>
         <h2>In Aguascalientes, all ${DATA.runs.length} runs fell</h2>
         <p class="lead">Drop: <b style="color:${SLIDE.orangeText}">${fmt3(d3.min(S, (s) => s.drop))} – ${fmt3(d3.max(S, (s) => s.drop))}</b> of macro-F1 ·
         last_block recovered at most <b style="color:${SLIDE.teal}">${fmt3(d3.max(S, (s) => s.recovery_last_block))}</b> of the drop; head at most ${fmt3(d3.max(S, (s) => s.recovery_head))}.</p>
@@ -637,7 +645,7 @@
     const root = document.getElementById("demo-confusion");
     root.innerHTML = `
       <div class="demo-head">
-        <div class="rotulo">Demo 3 · Where the errors go</div>
+        <div class="rotulo">${demoLabel("confusion")} · Where the errors go</div>
         <h2>Confusion matrix of any run, before and after fine-tuning</h2>
         <p class="lead">Rows are the true class and columns the predicted class. Switch between stages to see how the
         errors move: zero-shot, most Aguascalientes patches fall into one or two classes.</p>
@@ -753,7 +761,7 @@
     const sp = DATA.split;
     root.innerHTML = `
       <div class="demo-head">
-        <div class="rotulo">Demo 5 · Why we split by blocks</div>
+        <div class="rotulo">${demoLabel("split")} · Why we split by blocks</div>
         <h2>Neighboring cells look alike, so they should not be split apart</h2>
         <p class="lead">Each square is one labeled 640 m cell of Aguascalientes. If a test cell has a fine-tune cell next to it,
         the model has practically seen it, and the test score looks better than it is.</p>
@@ -799,7 +807,7 @@
       `Both splits keep the same sizes: ${sp.n_finetune} fine-tune and ${sp.n_test} test cells.`));
     panel.appendChild(el("div", { class: "callout warm" },
       `With blocks, <b>${sp.test_touching_finetune}</b> test cells still touch a fine-tune cell across a block edge. ` +
-      "The paper reports this as a limitation: the split has no buffer zone."));
+      "This is a known limitation: the split has no buffer zone between blocks."));
 
     // geometry: the map covers the labeled cells and, if present, the background image
     const BM = window.HYDROSCOPE_BASEMAP && window.HYDROSCOPE_BASEMAP.schema_version === 1 ? window.HYDROSCOPE_BASEMAP : null;
@@ -910,7 +918,7 @@
       last_block: ["What last_block fine-tunes", "In last_block mode the last block and the classifier learn; everything else stays frozen. The share of the model this represents differs a lot between architectures."],
       class_weights: ["Class-weighted loss", "The fine-tune split is imbalanced, so the cross-entropy gives each class the weight n / (K · n_c): rare classes count more."],
       freeze: ["Freezing everything else", "All parameters are frozen first; then only the modules of the chosen mode (head or last_block) are unfrozen."],
-      drop_recovery: ["Drop and recovery", "The two numbers behind RQ-b and RQ-c, exactly as the paper defines them. Demo 2 shows them for every run."],
+      drop_recovery: ["Drop and recovery", `How much each run loses in Aguascalientes, and how much of that loss fine-tuning wins back. ${demoLabel("runs")} shows both for every run.`],
       selection: ["Selection rule, fixed in advance", "The best Aguascalientes macro-F1 after last_block wins; runs within 0.01 of the top go to the higher throughput."],
     };
     const steps = [];
@@ -921,7 +929,7 @@
     });
     root.innerHTML = `
       <div class="demo-head">
-        <div class="rotulo">Demo 6 · The code behind the results</div>
+        <div class="rotulo">${demoLabel("code")} · The code behind the results</div>
         <h2>From the satellite to the selected model, in ${steps.length} functions</h2>
         <p class="lead">Each step shows the real function from the repository, read when <code>data.js</code> was generated,
         with a link to the same lines on GitHub.</p>
@@ -1009,6 +1017,269 @@
     };
   })();
 
+  // ------------------------------------------------------------------ images (optional: images.js)
+  // window.HYDROSCOPE_IMAGES is written by scripts/make_explorer_images.py. Each tile is a T x T
+  // square of a PNG sprite; the page only cuts tiles out and, for Grad-CAM, blends the map over
+  // the RGB patch with the chosen opacity. Without images.js both demos show a notice.
+  const spriteCache = {};
+  function loadSprite(file) {
+    if (!spriteCache[file]) {
+      spriteCache[file] = new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error(`${file} could not be loaded`));
+        img.src = file;
+      });
+    }
+    return spriteCache[file];
+  }
+  function patchCanvas(T, label) {
+    return el("canvas", { width: T, height: T, class: "patch", role: "img", "aria-label": label });
+  }
+  // Draw one tile; with `over`, blend a second tile on top: (1 - alpha) * base + alpha * over.
+  function drawTile(canvas, sprite, T, base, over, alpha) {
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, T, T);
+    ctx.drawImage(sprite, base.x, base.y, T, T, 0, 0, T, T);
+    if (over && alpha > 0) {
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(sprite, over.x, over.y, T, T, 0, 0, T, T);
+      ctx.globalAlpha = 1;
+    }
+  }
+  const imagesNotice = (what) =>
+    `<div class="callout warm"><b>${what} not available.</b> Generate the images from the repository root with ` +
+    "<code>python scripts/make_explorer_images.py</code> (it needs EuroSAT and the v1.0 release files) and reload this page.</div>";
+  const tipOn = (node, html) => {
+    node.addEventListener("mousemove", (e) => showTip(e, html));
+    node.addEventListener("mouseleave", hideTip);
+  };
+
+  // ================================================================== demo · the two datasets
+  (function demoData() {
+    const root = document.getElementById("demo-data");
+    const S = IMG && IMG.samples;
+    const T = (IMG && IMG.tile) || 64;
+    root.innerHTML = `
+      <div class="demo-head">
+        <div class="rotulo">${demoLabel("data")} · The two datasets</div>
+        <h2>The same ${DATA.classes.length} classes, in two very different landscapes</h2>
+        <p class="lead">Every model was trained on EuroSAT, a benchmark of Sentinel-2 patches from Europe, and then tested on
+        cells of Aguascalientes that we labeled by hand with the same classes. Each row shows random patches of one class, in true color.</p>
+      </div>
+      <div id="data-body"></div>`;
+    const body = document.getElementById("data-body");
+    if (!S || (!S.eurosat && !S.ags)) {
+      body.innerHTML = `<div class="tarjeta">${imagesNotice("Sample patches")}</div>`;
+      return;
+    }
+    const classes = S.classes || DATA.classes;
+    const euCount = (c) => (S.eurosat && S.eurosat.count[c]) || 0;
+    const agsCount = (c) => (S.ags && S.ags.count[c]) || { finetune: 0, test: 0 };
+    const agsTotal = (c) => agsCount(c).finetune + agsCount(c).test;
+    const most = d3.greatest(classes, agsTotal), fewest = d3.least(classes, agsTotal);
+
+    const bar = el("div", { class: "tarjeta controls-bar" });
+    const tiles = el("div", { class: "tiles", style: "flex:1 1 520px" });
+    if (S.eurosat) {
+      tiles.appendChild(el("div", { class: "tile" },
+        `<div class="v">${d3.sum(classes, euCount).toLocaleString("en-US")}</div><div class="k">EuroSAT test patches</div>`));
+    }
+    if (S.ags) {
+      tiles.appendChild(el("div", { class: "tile" },
+        `<div class="v">${d3.sum(classes, agsTotal).toLocaleString("en-US")}</div><div class="k">Aguascalientes labeled cells (fine-tune + test)</div>`));
+      tiles.appendChild(el("div", { class: "tile drop" },
+        `<div class="v">${agsTotal(most)} vs. ${agsTotal(fewest)}</div><div class="k">Labeled cells: ${pretty(most)} vs. ${pretty(fewest)}</div>`));
+    }
+    bar.appendChild(tiles);
+    const sizeBox = el("div", { class: "control" });
+    sizeBox.appendChild(el("span", { class: "rotulo" }, "Patch size on screen"));
+    let size = 72;
+    const updateSize = segmented(sizeBox, [{ value: 52, label: "Small" }, { value: 72, label: "Medium" }, { value: 112, label: "Large" }], (v) => {
+      size = v;
+      table.style.setProperty("--patch", v + "px");
+      updateSize(size);
+    });
+    updateSize(size);
+    bar.appendChild(sizeBox);
+    bar.appendChild(el("p", { class: "hint", style: "flex-basis:100%" },
+      `One patch is ${T} × ${T} pixels at 10 m, so ${(T * 10).toLocaleString("en-US")} m on a side: the same size in both datasets. ` +
+      "True color from bands B04, B03 and B02, stretched separately for each dataset. Hover a patch to see where it comes from."));
+    body.appendChild(bar);
+
+    const card = el("div", { class: "tarjeta" });
+    const table = el("div", { class: "datasets", style: `--patch:${size}px` });
+    table.appendChild(el("div", { class: "ds-head" },
+      `<span>Class</span><span>EuroSAT <span class="hint">· Europe, test split</span></span>` +
+      `<span>Aguascalientes <span class="hint">· labeled by us, both splits</span></span>`));
+    const pending = []; // [canvas, sprite position]
+    classes.forEach((c) => {
+      const row = el("div", { class: "ds-row" });
+      const ac = agsCount(c);
+      const excluded = !DATA.macro_f1_classes.includes(c);
+      row.appendChild(el("div", { class: "ds-name" },
+        `${pretty(c)}<div class="ds-meta">EuroSAT test: ${euCount(c)}<br>Ags fine-tune: ${ac.finetune}<br>Ags test: ${ac.test}</div>` +
+        (excluded ? '<span class="note-chip">Left out of the Aguascalientes macro-F1: too few test cells</span>' : "")));
+      [["eurosat", "EuroSAT"], ["ags", "Aguascalientes"]].forEach(([key, name]) => {
+        const side = el("div", { class: "side" });
+        side.appendChild(el("div", { class: "side-cap" }, name));
+        const strip = el("div", { class: "patches" });
+        const list = (S[key] && S[key].tiles[c]) || [];
+        if (!S[key]) strip.appendChild(el("span", { class: "empty" }, "Not generated"));
+        else if (!list.length) strip.appendChild(el("span", { class: "empty" }, "No labeled cells of this class"));
+        list.forEach((t) => {
+          const where = key === "eurosat" ? `EuroSAT test patch #${t.index}` : `Cell ${t.cell_id} · ${t.split === "test" ? "test" : "fine-tune"} split`;
+          const canvas = patchCanvas(T, `${pretty(c)}, ${where}`);
+          tipOn(canvas, `<b>${pretty(c)}</b><br>${where}`);
+          strip.appendChild(canvas);
+          pending.push([canvas, t]);
+        });
+        side.appendChild(strip);
+        row.appendChild(side);
+      });
+      table.appendChild(row);
+    });
+    card.appendChild(table);
+    body.appendChild(card);
+    loadSprite(S.file).then(
+      (sprite) => pending.forEach(([canvas, t]) => drawTile(canvas, sprite, T, t)),
+      () => card.insertAdjacentHTML("afterbegin", imagesNotice(`<code>${S.file}</code>`)),
+    );
+  })();
+
+  // ================================================================== demo · Grad-CAM
+  (function demoGradcam() {
+    const root = document.getElementById("demo-gradcam");
+    const G = IMG && IMG.gradcam;
+    const T = (IMG && IMG.tile) || 64;
+    root.innerHTML = `
+      <div class="demo-head">
+        <div class="rotulo">${demoLabel("gradcam")} · Where the models look</div>
+        <h2>Grad-CAM: which part of the patch drove each prediction</h2>
+        <p class="lead">Grad-CAM colors each patch by how much that region pushed the model toward the class it predicted:
+        red is strong, blue is weak. Every model sees the same patches, chosen at random.</p>
+      </div>
+      <div id="gc-body"></div>`;
+    const body = document.getElementById("gc-body");
+    if (!G || !G.figures || !G.figures.length) {
+      body.innerHTML = `<div class="tarjeta">${imagesNotice("Grad-CAM maps")}</div>`;
+      return;
+    }
+    const FIG = {
+      gradcam_eurosat: ["EuroSAT test", "The models trained on EuroSAT, on EuroSAT test patches."],
+      gradcam_ags: ["Aguascalientes, zero-shot", "The same models, without any training on Aguascalientes, on Aguascalientes test cells."],
+      gradcam_selected: ["Selected model, before and after fine-tuning", "The selected model before and after last_block fine-tuning, on Aguascalientes test cells."],
+    };
+    const figLabel = (f) => (FIG[f.name] || [f.name])[0];
+    const isAgs = (f) => String(f.dataset).startsWith("ags");
+    body.innerHTML = `
+      <div class="grid">
+        <div class="tarjeta panel" id="gc-panel"></div>
+        <div class="tarjeta" style="overflow-x:auto"><h3 id="gc-title"></h3><p class="hint" id="gc-lead" style="margin-bottom:14px"></p><div id="gc-grid"></div></div>
+      </div>`;
+    const panel = document.getElementById("gc-panel");
+    const figBox = el("div", { class: "control" });
+    figBox.appendChild(el("span", { class: "rotulo" }, "Patches and models"));
+    let current = G.figures[0].name;
+    const updateFig = segmented(figBox, G.figures.map((f) => ({ value: f.name, label: figLabel(f) })), (v) => {
+      current = v;
+      updateFig(current);
+      build();
+    });
+    panel.appendChild(figBox);
+
+    let alpha = 0.5;
+    const alphaBox = el("div", { class: "control" });
+    alphaBox.innerHTML = `<span class="rotulo">Grad-CAM opacity: <span id="gc-alpha-v">50 %</span></span>` +
+      '<input type="range" id="gc-alpha" min="0" max="100" step="5" value="50" aria-label="Grad-CAM opacity">' +
+      '<div class="jet" aria-hidden="true"></div><div class="jet-labels"><span>weak</span><span>strong</span></div>';
+    panel.appendChild(alphaBox);
+    const scoreBox = el("div", { class: "tiles" });
+    panel.appendChild(scoreBox);
+    const rulesBox = el("div", {});
+    panel.appendChild(rulesBox);
+    panel.appendChild(el("p", { class: "hint" },
+      "Each map explains the class the model predicted. ✓ means the prediction matches the true class; ✗ that it does not. " +
+      "At 0 % you see the plain true-color patch."));
+
+    const colTitle = (f, col) => {
+      const run = runsById.get(col.base_run_id);
+      const name = run ? `${nameOf("model", run.model)}</b><br>${nameOf("bands", run.bands)} · ${(DATA.names.init || {})[run.init] || run.init}` : `${col.base_run_id}</b>`;
+      const stage = !isAgs(f) ? "trained on EuroSAT" : col.stage === "last_block" ? "after last_block" : "zero-shot";
+      return `<b>${name}<br><span class="${col.stage === "last_block" ? "ok" : ""}">${stage}</span>`;
+    };
+
+    let maps = []; // [canvas, rgb position, map position]
+    function paint(sprite) {
+      maps.forEach(([canvas, rgb, map]) => drawTile(canvas, sprite, T, rgb, map, alpha));
+    }
+    function build() {
+      const f = G.figures.find((x) => x.name === current) || G.figures[0];
+      document.getElementById("gc-title").textContent = figLabel(f);
+      document.getElementById("gc-lead").textContent = (FIG[f.name] || [null, ""])[1];
+      // score per column, counted from the maps
+      scoreBox.innerHTML = f.columns.map((col, j) => {
+        const ok = f.rows.filter((r) => r.maps[j] && r.maps[j].correct).length;
+        const run = runsById.get(col.base_run_id);
+        const who = run ? nameOf("model", run.model) : col.base_run_id;
+        const stage = isAgs(f) && f.columns.some((c) => c.stage !== col.stage) ? ` · ${col.stage}` : "";
+        return `<div class="tile ${ok === f.rows.length ? "rec" : ""}"><div class="v">${ok} / ${f.rows.length}</div><div class="k">${who}${stage}: correct</div></div>`;
+      }).join("");
+      const rules = [...new Set(f.rows.map((r) => r.selection_rule))];
+      const ruleText = (rule) => {
+        const n = f.rows.filter((r) => r.selection_rule === rule).length;
+        const t = pretty(rule.replace(/gradcam_\w+/g, (m) => `“${FIG[m] ? FIG[m][0] : m}”`));
+        return `${t.charAt(0).toUpperCase()}${t.slice(1)} (${n} ${n === 1 ? "patch" : "patches"}).`;
+      };
+      rulesBox.innerHTML = '<span class="rotulo">How the patches were chosen</span>' +
+        `<ul class="rules">${rules.map((r) => `<li>${ruleText(r)}</li>`).join("")}</ul>`;
+
+      const grid = document.getElementById("gc-grid");
+      grid.innerHTML = "";
+      grid.className = "gc-grid";
+      grid.style.gridTemplateColumns = `var(--label) repeat(${f.columns.length + 1}, var(--patch))`;
+      grid.appendChild(el("div", { class: "gc-colhead" }, "<b>True class</b>"));
+      grid.appendChild(el("div", { class: "gc-colhead" }, "<b>True color</b><br>no map"));
+      f.columns.forEach((col) => grid.appendChild(el("div", { class: "gc-colhead" }, colTitle(f, col))));
+      maps = [];
+      const plain = [];
+      f.rows.forEach((r) => {
+        const where = isAgs(f) ? `cell ${r.cell_id}` : `EuroSAT test patch #${r.index}`;
+        grid.appendChild(el("div", { class: "gc-rowhead" }, `${pretty(r.true_label)}<div class="ds-meta">${where}</div>`));
+        const rgbCanvas = patchCanvas(T, `${pretty(r.true_label)}, true color`);
+        tipOn(rgbCanvas, `<b>${pretty(r.true_label)}</b><br>${where}`);
+        grid.appendChild(el("figure", { class: "gc-cell" })).appendChild(rgbCanvas);
+        plain.push([rgbCanvas, r.rgb]);
+        r.maps.forEach((m) => {
+          const fig = el("figure", { class: "gc-cell" });
+          const canvas = patchCanvas(T, `Grad-CAM, predicted ${m.predicted_label}`);
+          tipOn(canvas, `True: <b>${pretty(r.true_label)}</b><br>Predicted: <b>${pretty(m.predicted_label)}</b> ${m.correct ? "✓" : "✗"}`);
+          fig.appendChild(canvas);
+          fig.appendChild(el("figcaption", { class: m.correct ? "ok" : "bad" }, `${m.correct ? "✓" : "✗"} ${pretty(m.predicted_label)}`));
+          grid.appendChild(fig);
+          maps.push([canvas, r.rgb, m]);
+        });
+      });
+      loadSprite(G.file).then(
+        (sprite) => {
+          plain.forEach(([canvas, pos]) => drawTile(canvas, sprite, T, pos));
+          paint(sprite);
+        },
+        () => (grid.innerHTML = imagesNotice(`<code>${G.file}</code>`)),
+      );
+    }
+    const slider = document.getElementById("gc-alpha");
+    slider.addEventListener("input", () => {
+      alpha = +slider.value / 100;
+      document.getElementById("gc-alpha-v").textContent = `${slider.value} %`;
+      loadSprite(G.file).then(paint, () => {});
+    });
+    updateFig(current);
+    build();
+  })();
+
   // ------------------------------------------------------------------ start
-  showTab(location.hash.slice(1) || "eurosat");
+  showTab(location.hash.slice(1) || TABS[0]);
 })();

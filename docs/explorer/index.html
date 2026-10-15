@@ -23,19 +23,23 @@
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Demos">
-  <button class="tab" role="tab" id="tab-eurosat" aria-controls="demo-eurosat" data-tab="eurosat"><span class="n">1</span>Results on EuroSAT</button>
-  <button class="tab" role="tab" id="tab-runs" aria-controls="demo-runs" data-tab="runs"><span class="n">2</span>Drop and recovery</button>
-  <button class="tab" role="tab" id="tab-confusion" aria-controls="demo-confusion" data-tab="confusion"><span class="n">3</span>Confusion matrix</button>
-  <button class="tab" role="tab" id="tab-cost" aria-controls="demo-cost" data-tab="cost"><span class="n">4</span>CNN vs. ViT</button>
-  <button class="tab" role="tab" id="tab-split" aria-controls="demo-split" data-tab="split"><span class="n">5</span>Spatial split</button>
-  <button class="tab" role="tab" id="tab-code" aria-controls="demo-code" data-tab="code"><span class="n">6</span>Code tour</button>
+  <button class="tab" role="tab" id="tab-data" aria-controls="demo-data" data-tab="data"><span class="n">1</span>EuroSAT vs. Aguascalientes</button>
+  <button class="tab" role="tab" id="tab-eurosat" aria-controls="demo-eurosat" data-tab="eurosat"><span class="n">2</span>Results on EuroSAT</button>
+  <button class="tab" role="tab" id="tab-runs" aria-controls="demo-runs" data-tab="runs"><span class="n">3</span>Drop and recovery</button>
+  <button class="tab" role="tab" id="tab-confusion" aria-controls="demo-confusion" data-tab="confusion"><span class="n">4</span>Confusion matrix</button>
+  <button class="tab" role="tab" id="tab-cost" aria-controls="demo-cost" data-tab="cost"><span class="n">5</span>CNN vs. ViT</button>
+  <button class="tab" role="tab" id="tab-gradcam" aria-controls="demo-gradcam" data-tab="gradcam"><span class="n">6</span>Grad-CAM</button>
+  <button class="tab" role="tab" id="tab-split" aria-controls="demo-split" data-tab="split"><span class="n">7</span>Spatial split</button>
+  <button class="tab" role="tab" id="tab-code" aria-controls="demo-code" data-tab="code"><span class="n">8</span>Code tour</button>
 </nav>
 
 <main id="main">
+  <section class="demo" id="demo-data" role="tabpanel" aria-labelledby="tab-data" hidden></section>
   <section class="demo" id="demo-eurosat" role="tabpanel" aria-labelledby="tab-eurosat" hidden></section>
   <section class="demo" id="demo-runs" role="tabpanel" aria-labelledby="tab-runs" hidden></section>
   <section class="demo" id="demo-confusion" role="tabpanel" aria-labelledby="tab-confusion" hidden></section>
   <section class="demo" id="demo-cost" role="tabpanel" aria-labelledby="tab-cost" hidden></section>
+  <section class="demo" id="demo-gradcam" role="tabpanel" aria-labelledby="tab-gradcam" hidden></section>
   <section class="demo" id="demo-split" role="tabpanel" aria-labelledby="tab-split" hidden></section>
   <section class="demo" id="demo-code" role="tabpanel" aria-labelledby="tab-code" hidden></section>
 </main>
@@ -47,6 +51,8 @@
 <script src="data.js"></script>
 <!-- Optional background image of the spatial split demo (scripts/make_explorer_basemap.py). -->
 <script src="basemap.js"></script>
+<!-- Optional sample patches and Grad-CAM maps (scripts/make_explorer_images.py). -->
+<script src="images.js"></script>
 <script src="vendor/d3.v7.9.0.min.js"></script>
 <script>window.Prism = { manual: true };</script>
 <script src="vendor/prism-core.min.js"></script>
