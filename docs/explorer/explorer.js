@@ -784,6 +784,7 @@
             <span><i class="sq" style="background:${COLOR.touching}"></i>Test cell touching a fine-tune cell</span>
             <span><i class="sq" style="background:#fff;border:1px solid #B9C4D4"></i>Block of ${sp.block_cells} × ${sp.block_cells} cells</span>
           </div>
+          <p class="hint" style="margin-top:6px">Zoom with + and −, a double-click, or Ctrl/⌘ + scroll (pinch on a trackpad); drag to move.</p>
           ${window.HYDROSCOPE_BASEMAP ? '<p class="hint" style="margin-top:6px">Background: our April 2024 Sentinel-2 composite, true color, the same previews used for labeling. Contains modified Copernicus Sentinel-2 data (2024).</p>' : ""}
         </div>
       </div>`);
@@ -822,16 +823,17 @@
     const X = (col) => pad + (col - c0) * size, Y = (row) => pad + (row - r0) * size;
     const svg = d3.select("#split-map").append("svg").attr("viewBox", `0 0 ${W} ${H}`)
       .attr("role", "img").attr("aria-label", "Map of the labeled cells of Aguascalientes colored by split");
-    const image = BM ? svg.append("image").attr("href", BM.file).attr("x", X(BM.col0)).attr("y", Y(BM.row0))
+    const layer = svg.append("g").attr("class", "zoom-layer"); // everything that moves with the zoom
+    const image = BM ? layer.append("image").attr("href", BM.file).attr("x", X(BM.col0)).attr("y", Y(BM.row0))
       .attr("width", BM.n_cols * size).attr("height", BM.n_rows * size).attr("preserveAspectRatio", "none") : null;
     // One square per block that holds labeled cells, colored by the block's split.
     const blockSide = new Map();
     sp.cells.forEach((c) => blockSide.set(Math.floor(c[0] / sp.block_cells) + ":" + Math.floor(c[1] / sp.block_cells), c[2]));
     const blocks = [...blockSide.entries()].map(([k, side]) => ({ by: +k.split(":")[0], bx: +k.split(":")[1], side }));
-    const blockRects = svg.append("g").selectAll("rect").data(blocks).join("rect")
+    const blockRects = layer.append("g").selectAll("rect").data(blocks).join("rect")
       .attr("x", (d) => X(d.bx * sp.block_cells)).attr("y", (d) => Y(d.by * sp.block_cells))
       .attr("width", sp.block_cells * size).attr("height", sp.block_cells * size);
-    const grid = svg.append("g").attr("stroke-width", 0.6);
+    const grid = layer.append("g").attr("stroke-width", 0.6);
     for (let b = Math.floor(c0 / sp.block_cells); b <= Math.ceil(c1 / sp.block_cells); b++) {
       grid.append("line").attr("x1", X(b * sp.block_cells)).attr("x2", X(b * sp.block_cells)).attr("y1", pad).attr("y2", H - pad);
     }
@@ -868,9 +870,37 @@
     if (d3.sum(ourTouching) !== sp.test_touching_finetune) {
       console.warn("touching count differs from data.js", d3.sum(ourTouching), sp.test_touching_finetune);
     }
-    const rects = svg.append("g").selectAll("rect").data(sp.cells).join("rect")
+    const rects = layer.append("g").selectAll("rect").data(sp.cells).join("rect")
       .attr("x", (d) => X(d[1]) + 0.4).attr("y", (d) => Y(d[0]) + 0.4)
       .attr("width", size - 0.8).attr("height", size - 0.8);
+
+    // Zoom: buttons, double-click, drag to move, Ctrl/⌘ + wheel or a trackpad pinch. A plain wheel
+    // keeps scrolling the page. The zoom stays when the split changes, to compare the same area.
+    const MAX_ZOOM = 8, STEP = 1.6;
+    const mapBox = document.getElementById("split-map");
+    const tools = el("div", { class: "map-tools" },
+      '<button type="button" class="btn icon" data-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>' +
+      '<button type="button" class="btn icon" data-zoom="out" aria-label="Zoom out" title="Zoom out">−</button>' +
+      '<span class="zoom-level" aria-live="polite">1.0×</span>' +
+      '<button type="button" class="btn" data-zoom="reset">Reset</button>');
+    mapBox.appendChild(tools);
+    const level = tools.querySelector(".zoom-level");
+    const zoom = d3.zoom()
+      .scaleExtent([1, MAX_ZOOM])
+      .translateExtent([[0, 0], [W, H]])
+      .filter((event) => (event.type === "wheel" ? event.ctrlKey || event.metaKey : !event.button))
+      .wheelDelta((event) => -event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002) *
+        (Math.abs(event.deltaY) < 50 ? 10 : 2)) // small deltas = trackpad pinch, large = mouse wheel
+      .on("zoom", (event) => {
+        layer.attr("transform", event.transform);
+        level.textContent = event.transform.k.toFixed(1) + "×";
+        svg.classed("zoomed", event.transform.k > 1.01);
+        hideTip();
+      });
+    svg.call(zoom);
+    tools.querySelector('[data-zoom="in"]').addEventListener("click", () => svg.transition().duration(300).call(zoom.scaleBy, STEP));
+    tools.querySelector('[data-zoom="out"]').addEventListener("click", () => svg.transition().duration(300).call(zoom.scaleBy, 1 / STEP));
+    tools.querySelector('[data-zoom="reset"]').addEventListener("click", () => svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity));
 
     let lastSplitKey = null;
     renderers.split = function () {
